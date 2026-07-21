@@ -1,22 +1,30 @@
-# Claude RTL Patcher (Persian / Farsi Support)
+<div align="center">
+  <img src="./assets/preview.png" alt="Claude RTL Patcher Preview" width="100%">
+  
+  <h1>🌟 Claude RTL Patcher (Persian / Farsi Support)</h1>
+  <p><strong>The ultimate auto-patcher for right-to-left text & Vazirmatn font in Claude Desktop</strong></p>
 
-[![npm version](https://badge.fury.io/js/claude-rtl-patcher.svg)](https://badge.fury.io/js/claude-rtl-patcher)
+  [![npm version](https://badge.fury.io/js/claude-rtl-patcher.svg)](https://badge.fury.io/js/claude-rtl-patcher)
+  [![License: MIT](https://img.shields.io/badge/License-MIT-blue.svg)](https://opensource.org/licenses/MIT)
+  [![PRs Welcome](https://img.shields.io/badge/PRs-welcome-brightgreen.svg)](http://makeapullrequest.com)
 
-این یک ابزار متن‌باز است که به صورت کاملاً خودکار، پشتیبانی از متون راست‌چین (RTL) و فونت زیبای **وزیرمتن** را به اپلیکیشن دسکتاپ **Claude (کلود)** برای مک‌اواس اضافه می‌کند. 
+  ✨ *RTL applied by Rick Sanchez and Vazirmatn font used in memory of Saber Rastikerdar.* ✨
 
-✨ **RTL applied by Rick Sanchez and Vazirmatn font used in memory of Saber Rastikerdar.** ✨
+</div>
 
-![Claude App Preview](./assets/preview.png)
+---
 
-## 🚀 نصب با یک کلیک (پیشنهادی)
+این یک ابزار متن‌باز است که به صورت کاملاً خودکار، پشتیبانی از متون راست‌چین (RTL) و فونت زیبای **وزیرمتن** را به صورت آفلاین به اپلیکیشن دسکتاپ **Claude (کلود)** برای سیستم‌عامل مک‌اواس (macOS) اضافه می‌کند. 
 
-بدون نیاز به دانلود فایل یا نصب هیچ چیز اضافه، کافیست ترمینال مک (Terminal) را باز کنید و دستور جادویی زیر را در آن پیست کنید و اینتر بزنید:
+## 🚀 نصب با یک کلیک (بدون نیاز به نصب نود جی‌اس)
+
+بدون نیاز به دانلود فایل یا نصب هیچ پیش‌نیازی، کافیست ترمینال مک (Terminal) را باز کنید و دستور جادویی زیر را در آن پیست کنید و اینتر بزنید:
 
 \`\`\`bash
 curl -sL https://raw.githubusercontent.com/m4tinbeigi-official/claude-rtl-patcher/main/install.sh | bash
 \`\`\`
 
-*(اسکریپت با داشتن یک رابط کاربری ترمینال فوق‌العاده جذاب و انیمیشنی، در عرض ۵ ثانیه کلود شما را فارسی کرده و فونت آفلاین وزیرمتن را روی آن نصب می‌کند!)*
+*(اسکریپت با داشتن یک رابط کاربری ترمینال فوق‌العاده جذاب و انیمیشنی، در عرض چند ثانیه کلود شما را فارسی کرده و فونت آفلاین وزیرمتن را روی آن نصب می‌کند!)*
 
 پس از اتمام کار، برنامه کلود را کامل ببندید (`Cmd + Q`) و دوباره باز کنید.
 
@@ -30,13 +38,24 @@ curl -sL https://raw.githubusercontent.com/m4tinbeigi-official/claude-rtl-patche
 
 ---
 
+## 🛠️ تکنولوژی‌های استفاده شده (Technologies Used)
+این پروژه از مدرن‌ترین پکیج‌های جاوااسکریپت برای دور زدن محدودیت‌های امنیتی macOS و تغییر مستقیم فایل‌های بسته شده‌ی Electron استفاده می‌کند:
+
+- **[Node.js](https://nodejs.org/):** هسته اصلی پردازش
+- **[@electron/asar](https://github.com/electron/asar):** استخراج، ویرایش و پکیج کردن مجدد سورس کدهای Claude بدون خراب کردن `Native Modules`.
+- **[Plist](https://www.npmjs.com/package/plist):** دستکاری فایل `Info.plist` برنامه برای قرار دادن `Hash` امنیتی جدید جهت دور زدن `Asar Integrity Check`.
+- **[Chalk](https://www.npmjs.com/package/chalk) & [Ora](https://www.npmjs.com/package/ora) & [Figlet](https://www.npmjs.com/package/figlet):** ساخت یک رابط کاربری ترمینالی خفن و رنگی با انیمیشن‌های روان.
+- **[Crypto]:** برای محاسبه هوشمند SHA256 و امضای دیجیتال فیک جهت گول زدن مک‌اواس (`Gatekeeper Bypass`).
+
+---
+
 ## ⏪ بازگردانی به حالت اولیه (Restore)
 اگر به هر دلیلی خواستید کلود را به حالت اورجینال (بدون فونت و چپ‌چین) برگردانید، فقط کافیست دستور زیر را در ترمینال بزنید:
 
 \`\`\`bash
 npx claude-rtl-patcher --restore
 \`\`\`
-پشتیبان اورجینال برنامه فوراً بازگردانی می‌شود.
+نسخه پشتیبان که در زمان نصب به صورت خودکار ساخته شده بود، فوراً بازگردانی می‌شود.
 
 ---
 
@@ -48,5 +67,11 @@ npx claude-rtl-patcher --restore
 
 ---
 
-### Contribution
-Feel free to open issues or submit pull requests. Currently supports **macOS** installations of the Claude Desktop App. Windows support can be easily added by adjusting the path!
+## 🤝 مشارکت‌کنندگان (Contributors)
+توسعه و به‌روز نگه داشتن این پروژه با کمک توسعه‌دهندگان اوپن‌سورس انجام می‌شود. ما از هرگونه Pull Request استقبال می‌کنیم!
+
+<a href="https://github.com/m4tinbeigi-official/claude-rtl-patcher/graphs/contributors">
+  <img src="https://contrib.rocks/image?repo=m4tinbeigi-official/claude-rtl-patcher" />
+</a>
+
+*پشتیبانی از ویندوز به زودی! برای اضافه کردن ویندوز فقط کافیست مسیر (`path`) نصب کلاود در فایل `index.js` تغییر یابد.*
