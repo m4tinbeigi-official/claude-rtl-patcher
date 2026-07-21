@@ -13,29 +13,47 @@ const fontCss = require('./font.js');
 
 const isMac = process.platform === 'darwin';
 const isWin = process.platform === 'win32';
+const isLinux = process.platform === 'linux';
 
-if (!isMac && !isWin) {
-    console.error(chalk.red('[!] Unsupported OS. This patcher only supports macOS and Windows.'));
-    process.exit(1);
-}
-
-let CLAUDE_APP_PATH, RESOURCES_PATH, INFO_PLIST_PATH;
-
-if (isMac) {
-    CLAUDE_APP_PATH = '/Applications/Claude.app';
-    RESOURCES_PATH = path.join(CLAUDE_APP_PATH, 'Contents', 'Resources');
-    INFO_PLIST_PATH = path.join(CLAUDE_APP_PATH, 'Contents', 'Info.plist');
-} else {
-    // Windows
-    CLAUDE_APP_PATH = path.join(process.env.LOCALAPPDATA, 'Programs', 'Claude');
-    RESOURCES_PATH = path.join(CLAUDE_APP_PATH, 'resources');
-}
-
-const ASAR_PATH = path.join(RESOURCES_PATH, 'app.asar');
-const BACKUP_PATH = path.join(RESOURCES_PATH, 'app.asar.bak');
-const TEMP_DIR = path.join(require('os').tmpdir(), 'claude-rtl-patcher-temp');
-
+// Allow user to pass a custom path as an argument
+let customPath = process.argv.find(arg => arg.includes('Claude') || arg.includes('app.asar') || arg.includes('resources'));
 const isRestore = process.argv.includes('--restore');
+
+let CLAUDE_APP_PATH, RESOURCES_PATH, INFO_PLIST_PATH, ASAR_PATH, BACKUP_PATH;
+
+if (customPath) {
+    // If user provided a path to app.asar directly
+    if (customPath.endsWith('app.asar')) {
+        ASAR_PATH = customPath;
+        RESOURCES_PATH = path.dirname(ASAR_PATH);
+        CLAUDE_APP_PATH = path.dirname(RESOURCES_PATH);
+    } else {
+        CLAUDE_APP_PATH = customPath;
+        RESOURCES_PATH = path.join(CLAUDE_APP_PATH, 'resources');
+        if (!fs.existsSync(RESOURCES_PATH) && isMac) RESOURCES_PATH = path.join(CLAUDE_APP_PATH, 'Contents', 'Resources');
+        ASAR_PATH = path.join(RESOURCES_PATH, 'app.asar');
+    }
+} else {
+    if (isMac) {
+        CLAUDE_APP_PATH = '/Applications/Claude.app';
+        RESOURCES_PATH = path.join(CLAUDE_APP_PATH, 'Contents', 'Resources');
+        INFO_PLIST_PATH = path.join(CLAUDE_APP_PATH, 'Contents', 'Info.plist');
+    } else if (isWin) {
+        CLAUDE_APP_PATH = path.join(process.env.LOCALAPPDATA || process.env.APPDATA || '', 'Programs', 'Claude');
+        RESOURCES_PATH = path.join(CLAUDE_APP_PATH, 'resources');
+    } else if (isLinux) {
+        CLAUDE_APP_PATH = '/opt/Claude';
+        RESOURCES_PATH = path.join(CLAUDE_APP_PATH, 'resources');
+    } else {
+        console.error(chalk.red('[!] Auto-detection failed. Please provide the path to your Claude installation manually.'));
+        console.log(chalk.yellow('Example: npx claude-rtl-patcher /custom/path/to/Claude'));
+        process.exit(1);
+    }
+    ASAR_PATH = path.join(RESOURCES_PATH, 'app.asar');
+}
+
+BACKUP_PATH = path.join(RESOURCES_PATH, 'app.asar.bak');
+const TEMP_DIR = path.join(require('os').tmpdir(), 'claude-rtl-patcher-temp');
 
 const CSS_INJECT = `
 /* RTL and Vazirmatn Font Patch */
@@ -85,7 +103,9 @@ async function patch() {
     }
 
     if (!fs.existsSync(ASAR_PATH)) {
-        console.error(chalk.red(`[!] Claude app not found at ${ASAR_PATH}. Please make sure it's installed.`));
+        console.error(chalk.red(`[!] Claude app not found at ${ASAR_PATH}.`));
+        console.log(chalk.yellow('If you installed Claude in a custom location, you can pass the path as an argument:'));
+        console.log(chalk.yellow('npx claude-rtl-patcher /your/custom/path/to/Claude'));
         process.exit(1);
     }
 
@@ -151,7 +171,7 @@ async function patch() {
         process.exit(1);
     }
 
-    if (isMac) {
+    if (isMac && INFO_PLIST_PATH) {
         spinner = ora('Updating macOS security hashes and bypassing Gatekeeper...').start();
         try {
             const fileBuffer = fs.readFileSync(ASAR_PATH);
