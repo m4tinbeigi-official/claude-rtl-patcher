@@ -7,6 +7,7 @@
   [![npm version](https://badge.fury.io/js/claude-rtl-patcher.svg)](https://badge.fury.io/js/claude-rtl-patcher)
   [![License: MIT](https://img.shields.io/badge/License-MIT-blue.svg)](https://opensource.org/licenses/MIT)
   [![PRs Welcome](https://img.shields.io/badge/PRs-welcome-brightgreen.svg)](http://makeapullrequest.com)
+  [![GitHub stars](https://img.shields.io/github/stars/m4tinbeigi-official/claude-rtl-patcher.svg?style=social&label=Star)](https://github.com/m4tinbeigi-official/claude-rtl-patcher/stargazers)
 
   ✨ *RTL applied by Rick Sanchez and Vazirmatn font used in memory of Saber Rastikerdar.* ✨
 
@@ -76,3 +77,12 @@ npx claude-rtl-patcher --restore
 <a href="https://github.com/m4tinbeigi-official/claude-rtl-patcher/graphs/contributors">
   <img src="https://contrib.rocks/image?repo=m4tinbeigi-official/claude-rtl-patcher" />
 </a>
+
+---
+
+## ⭐ حمایت از پروژه
+اگر این ابزار برای شما مفید بود و کلود شما را زیباتر کرد، لطفاً با **Star دادن (⭐)** به این ریپازیتوری در بالای صفحه گیت‌هاب، از ما حمایت کنید تا بقیه کاربران ایرانی هم بتوانند راحت‌تر این پروژه را پیدا کنند!
+
+## 📜 لایسنس (License)
+این پروژه تحت لایسنس کاملاً آزاد **MIT** منتشر شده است. 
+به این معنا که **هر کسی آزاد است هر کاری که دلش می‌خواهد با این کدها انجام دهد!** می‌توانید آن را تغییر دهید، در پروژه‌های شخصی یا تجاری استفاده کنید، یا حتی آن را با نام خودتان توسعه دهید. هدف ما فقط دسترسی آزاد و راحت به تکنولوژی برای همه است. 🕊️
