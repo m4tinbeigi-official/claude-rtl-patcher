@@ -1,8 +1,8 @@
 <div align="center">
   <img src="./assets/preview.png" alt="Claude RTL Patcher Preview" width="100%">
   
-  <h1>🌟 Claude RTL Patcher (Persian / Farsi Support)</h1>
-  <p><strong>The ultimate auto-patcher for right-to-left text & Vazirmatn font in Claude Desktop</strong></p>
+  <h1>🌟 Claude RTL Patcher (Persian / Arabic / Hebrew)</h1>
+  <p><strong>The ultimate auto-patcher for Right-to-Left (RTL) text and beautiful typography in the Claude Desktop app.</strong></p>
 
   [![npm version](https://badge.fury.io/js/claude-rtl-patcher.svg)](https://www.npmjs.com/package/claude-rtl-patcher)
   [![License: MIT](https://img.shields.io/badge/License-MIT-blue.svg)](https://opensource.org/licenses/MIT)
@@ -11,76 +11,66 @@
 
   ✨ *RTL applied by Rick Sanchez and Vazirmatn font used in memory of Saber Rastikerdar.* ✨
 
+  [🇮🇷 نسخه فارسی (Read in Persian)](./README-FA.md)
 </div>
 
 ---
 
-این یک ابزار متن‌باز است که به صورت کاملاً خودکار، پشتیبانی از متون راست‌چین (RTL) و فونت زیبای **وزیرمتن** را به صورت آفلاین به اپلیکیشن دسکتاپ **Claude (کلود)** برای **تمامی سیستم‌عامل‌ها (مک‌اواس، ویندوز و لینوکس)** اضافه می‌کند. 
-🎉 این پروژه **[به صورت رسمی در مخزن جهانی NPM منتشر شده است](https://www.npmjs.com/package/claude-rtl-patcher)**!
+This is an open-source, automated tool that injects robust **Right-to-Left (RTL)** support and the beautiful **Vazirmatn** font directly into the official **Claude Desktop App** (macOS, Windows, Linux).
+It fixes the broken text alignment for languages like **Persian (Farsi), Arabic, and Hebrew** so you can chat with Claude seamlessly.
 
-## 🚀 نصب با یک کلیک (پیشنهادی برای مک، ویندوز و لینوکس)
+## 🚀 One-Click Installation (Recommended)
 
-بدون نیاز به دانلود فایل یا نصب هیچ پیش‌نیازی، کافیست ترمینال سیستم خود (CMD / PowerShell / Terminal) را باز کنید و دستور جادویی زیر را در آن تایپ کنید و اینتر بزنید:
+You do not need to download or install anything manually. Just open your system's terminal (CMD / PowerShell / Mac Terminal) and paste this magic command:
 
 \`\`\`bash
-npx --yes claude-rtl-patcher
+npx claude-rtl-patcher
 \`\`\`
 
-*(اسکریپت با داشتن یک رابط کاربری ترمینال فوق‌العاده جذاب و انیمیشنی، به صورت هوشمند سیستم عامل شما را تشخیص داده و در عرض چند ثانیه کلود شما را فارسی کرده و فونت آفلاین وزیرمتن را روی آن نصب می‌کند!)*
+*(The script features a beautiful interactive CLI that will automatically detect your OS, create a backup, inject the CSS, and bypass security constraints within seconds!)*
 
-### 🐧 نصب در مسیرهای کاستوم (لینوکس و نسخه‌های پرتابل)
-اگر کلود را در مسیر خاصی نصب کرده‌اید یا از نسخه‌های غیررسمی لینوکس استفاده می‌کنید، فقط کافیست مسیر نصب کلود (یا فایل `app.asar`) را به عنوان یک آرگومان به دستور بالا اضافه کنید:
+Once finished, fully close Claude (`Cmd + Q` or `Ctrl + Q`) and reopen it.
+
+---
+
+## 🐧 Custom Paths & Linux
+If you installed Claude in a custom directory, or you use an unofficial Linux wrapper, simply provide the path to your installation (or directly to the `app.asar` file) as an argument:
 \`\`\`bash
-npx --yes claude-rtl-patcher /opt/Claude
-# یا مستقیماً آدرس فایل asar:
-npx --yes claude-rtl-patcher /home/user/.local/share/Claude/resources/app.asar
+npx claude-rtl-patcher /opt/Claude
+# or directly to asar:
+npx claude-rtl-patcher /home/user/.local/share/Claude/resources/app.asar
 \`\`\`
 
-پس از اتمام کار، برنامه کلود را کامل ببندید (`Cmd + Q`) و دوباره باز کنید.
-
 ---
 
-## 🤖 نصب توسط هوش مصنوعی خودِ Claude (روش خفن!)
-اگر نسخه جدید Claude را دارید که می‌تواند دسکتاپ شما را کنترل کند، فقط لینک همین صفحه را به او بدهید و بگویید:
-> **"لطفا نرم افزار کلاد من رو با استفاده از این ریپازیتوری فارسی سازی کن."**
-
-کلود خودش راهنمای مخفی ما (`CLAUDE.md`) را می‌خواند و ترمینال را باز کرده و همه کارها را برای شما انجام می‌دهد! اگر هم نسخه‌اش با این اسکریپت فرق داشته باشد، خودش هوشمندانه کدهایش را تغییر می‌دهد تا مشکل برطرف شود!
-
----
-
-## 🛠️ تکنولوژی‌های استفاده شده (Technologies Used)
-این پروژه از مدرن‌ترین پکیج‌های جاوااسکریپت برای دور زدن محدودیت‌های امنیتی macOS و تغییر مستقیم فایل‌های بسته شده‌ی Electron استفاده می‌کند:
-
-- **[Node.js](https://nodejs.org/):** هسته اصلی پردازش
-- **[@electron/asar](https://github.com/electron/asar):** استخراج، ویرایش و پکیج کردن مجدد سورس کدهای Claude بدون خراب کردن `Native Modules`.
-- **[Plist](https://www.npmjs.com/package/plist):** دستکاری فایل `Info.plist` برنامه برای قرار دادن `Hash` امنیتی جدید جهت دور زدن `Asar Integrity Check`.
-- **[Chalk](https://www.npmjs.com/package/chalk) & [Ora](https://www.npmjs.com/package/ora) & [Figlet](https://www.npmjs.com/package/figlet):** ساخت یک رابط کاربری ترمینالی خفن و رنگی با انیمیشن‌های روان.
-- **[Crypto]:** برای محاسبه هوشمند SHA256 و امضای دیجیتال فیک جهت گول زدن مک‌اواس (`Gatekeeper Bypass`).
-
----
-
-## ⏪ بازگردانی به حالت اولیه (Restore)
-اگر به هر دلیلی خواستید کلود را به حالت اورجینال (بدون فونت و چپ‌چین) برگردانید، فقط کافیست دستور زیر را در ترمینال بزنید:
-
+## ⏪ How to Restore
+If you ever want to revert Claude to its original state, just run:
 \`\`\`bash
 npx claude-rtl-patcher --restore
 \`\`\`
-نسخه پشتیبان که در زمان نصب به صورت خودکار ساخته شده بود، فوراً بازگردانی می‌شود.
+Your original backup will be instantly restored.
 
 ---
 
-## 🆘 پرامپت نجات (Ultimate Fallback Prompt)
-اگر اسکریپت تحت هر شرایطی ارور داد و نتوانست کلود را فارسی کند، نگران نباشید. اسکریپت ما به قدری امن است که در صورت ارور سریعاً کلود را به حالت اورجینال بازمی‌گرداند تا خراب نشود.
-اگر این اتفاق افتاد، پرامپت انگلیسی زیر را کپی کنید و در کلود چت پیست کنید تا کلود شخصاً مشکل خودش را حل کند:
+## 🆘 The Ultimate Fallback Prompt
+If the patcher fails due to an unknown or severely updated Claude version, don't worry. The patcher will safely restore your app.
+As a fallback, just copy this prompt and paste it into Claude itself, and let Claude fix its own Desktop app for you!
 
-> "Hey Claude! I am trying to run the `claude-rtl-patcher` on my Mac to add Persian (RTL) and Vazirmatn font to your Desktop App. It failed to patch my current version. Can you please write a custom Node.js script using `@electron/asar` to dynamically patch your `.vite/build` and `.vite/renderer` CSS and JS files for my specific version? Make sure to use the `--unpack` flag for `.node` files, calculate the new ASAR SHA256, update `Info.plist`, and run `codesign --remove-signature` to bypass Gatekeeper. Please do everything automatically."
+> "Hey Claude! I am trying to run the `claude-rtl-patcher` on my system to add RTL and Vazirmatn font to your Desktop App. It failed to patch my current version. Can you please write a custom Node.js script using `@electron/asar` to dynamically patch your `.vite/build` and `.vite/renderer` CSS and JS files for my specific version? Make sure to use the `--unpack` flag for `.node` files, calculate the new ASAR SHA256, update `Info.plist`, and run `codesign --remove-signature` to bypass Gatekeeper. Please do everything automatically."
 
 ---
 
-## 🤝 مشارکت‌کنندگان و فراخوان توسعه (Call for Contributors)
-ما از تمام توسعه‌دهندگان خوش‌ذوق دعوت می‌کنیم تا در این پروژه متن‌باز مشارکت کنند! ایده‌های فعلی که به شدت به کمک شما در آن‌ها نیاز داریم:
+## 🛠️ Technologies Used
+- **[Node.js](https://nodejs.org/):** Core processor.
+- **[@electron/asar](https://github.com/electron/asar):** Safe extraction and repacking of Electron sources without breaking Native Modules.
+- **[Inquirer](https://www.npmjs.com/package/inquirer):** Interactive CLI menus.
+- **[Chalk](https://www.npmjs.com/package/chalk) & [Ora](https://www.npmjs.com/package/ora) & [Figlet](https://www.npmjs.com/package/figlet):** Beautiful colored UI and spinners.
+- **[Crypto]:** Smart SHA256 calculation to spoof Apple's ASAR Integrity Check (`Gatekeeper Bypass`).
 
-1. **بهینه‌سازی برای سایر نسخه‌های کلود:** با وجود اینکه تلاش کردیم کدهای استخراج کاملاً داینامیک باشند و روی تمام نسخه‌های ویندوز، مک و لینوکس به درستی کار کنند، اما اگر در نسخه‌های خاصی از کلود مشکلی دیدید، با ارسال Pull Request کدها را بهینه‌تر کنید!
+---
+
+## 🤝 Call for Contributors
+We welcome pull requests from everyone! 
 
 <a href="https://github.com/m4tinbeigi-official/claude-rtl-patcher/graphs/contributors">
   <img src="https://contrib.rocks/image?repo=m4tinbeigi-official/claude-rtl-patcher" />
@@ -88,9 +78,8 @@ npx claude-rtl-patcher --restore
 
 ---
 
-## ⭐ حمایت از پروژه
-اگر این ابزار برای شما مفید بود و کلود شما را زیباتر کرد، لطفاً با **Star دادن (⭐)** به این ریپازیتوری در بالای صفحه گیت‌هاب، از ما حمایت کنید تا بقیه کاربران ایرانی هم بتوانند راحت‌تر این پروژه را پیدا کنند!
+## ⭐ Support the Project
+If this tool made your Claude experience better, please consider **Starring (⭐)** this repository at the top of the page. It helps the project reach more users!
 
-## 📜 لایسنس (License)
-این پروژه تحت لایسنس کاملاً آزاد **MIT** منتشر شده است. 
-به این معنا که **هر کسی آزاد است هر کاری که دلش می‌خواهد با این کدها انجام دهد!** می‌توانید آن را تغییر دهید، در پروژه‌های شخصی یا تجاری استفاده کنید، یا حتی آن را با نام خودتان توسعه دهید. هدف ما فقط دسترسی آزاد و راحت به تکنولوژی برای همه است. 🕊️
+## 📜 License
+Published under the completely permissive **MIT License**. You are free to modify, distribute, and use this code commercially. 🕊️
