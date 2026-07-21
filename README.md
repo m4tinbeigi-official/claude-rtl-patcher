@@ -11,7 +11,7 @@
 
   ✨ *RTL applied by Rick Sanchez and Vazirmatn font used in memory of Saber Rastikerdar.* ✨
 
-  [🇮🇷 نسخه فارسی (Read in Persian)](./README-FA.md)
+  [🇮🇷 نسخه فارسی (Persian)](./README-FA.md) | [🇸🇦 اقرأ بالعربية (Arabic)](./README-AR.md) | [🇮🇱 קרא בעברית (Hebrew)](./README-HE.md)
 </div>
 
 ---
