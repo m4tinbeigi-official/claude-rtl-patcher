@@ -3,9 +3,7 @@
   "version": "1.0.0",
   "description": "Automated patcher to add Vazirmatn font and RTL support to Claude Desktop app for macOS, Windows, and Linux.",
   "main": "index.js",
-  "bin": {
-    "claude-rtl-patcher": "./index.js"
-  },
+  "bin": "./index.js",
   "scripts": {
     "test": "echo \"Error: no test specified\" && exit 1"
   },
