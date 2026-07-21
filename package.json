@@ -1,0 +1,20 @@
+{
+  "name": "claude-rtl-patcher",
+  "version": "1.0.0",
+  "description": "Automated patcher to add Vazirmatn font and RTL support to Claude Desktop app for macOS.",
+  "main": "index.js",
+  "bin": {
+    "claude-rtl-patcher": "./index.js"
+  },
+  "scripts": {
+    "test": "echo \"Error: no test specified\" && exit 1"
+  },
+  "keywords": [],
+  "author": "",
+  "license": "ISC",
+  "type": "commonjs",
+  "dependencies": {
+    "@electron/asar": "^4.2.0",
+    "plist": "^5.0.0"
+  }
+}
