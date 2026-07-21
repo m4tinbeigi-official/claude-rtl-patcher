@@ -4,7 +4,7 @@
   <h1>🌟 Claude RTL Patcher (Persian / Farsi Support)</h1>
   <p><strong>The ultimate auto-patcher for right-to-left text & Vazirmatn font in Claude Desktop</strong></p>
 
-  [![npm version](https://badge.fury.io/js/claude-rtl-patcher.svg)](https://badge.fury.io/js/claude-rtl-patcher)
+  [![npm version](https://badge.fury.io/js/claude-rtl-patcher.svg)](https://www.npmjs.com/package/claude-rtl-patcher)
   [![License: MIT](https://img.shields.io/badge/License-MIT-blue.svg)](https://opensource.org/licenses/MIT)
   [![PRs Welcome](https://img.shields.io/badge/PRs-welcome-brightgreen.svg)](http://makeapullrequest.com)
   [![GitHub stars](https://img.shields.io/github/stars/m4tinbeigi-official/claude-rtl-patcher.svg?style=social&label=Star)](https://github.com/m4tinbeigi-official/claude-rtl-patcher/stargazers)
@@ -16,6 +16,7 @@
 ---
 
 این یک ابزار متن‌باز است که به صورت کاملاً خودکار، پشتیبانی از متون راست‌چین (RTL) و فونت زیبای **وزیرمتن** را به صورت آفلاین به اپلیکیشن دسکتاپ **Claude (کلود)** برای **تمامی سیستم‌عامل‌ها (مک‌اواس، ویندوز و لینوکس)** اضافه می‌کند. 
+🎉 این پروژه **[به صورت رسمی در مخزن جهانی NPM منتشر شده است](https://www.npmjs.com/package/claude-rtl-patcher)**!
 
 ## 🚀 نصب با یک کلیک (پیشنهادی برای مک، ویندوز و لینوکس)
 
