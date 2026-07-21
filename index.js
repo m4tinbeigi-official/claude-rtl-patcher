@@ -11,11 +11,28 @@ const ora = require('ora');
 const figlet = require('figlet');
 const fontCss = require('./font.js');
 
-const CLAUDE_APP_PATH = '/Applications/Claude.app';
-const RESOURCES_PATH = path.join(CLAUDE_APP_PATH, 'Contents', 'Resources');
+const isMac = process.platform === 'darwin';
+const isWin = process.platform === 'win32';
+
+if (!isMac && !isWin) {
+    console.error(chalk.red('[!] Unsupported OS. This patcher only supports macOS and Windows.'));
+    process.exit(1);
+}
+
+let CLAUDE_APP_PATH, RESOURCES_PATH, INFO_PLIST_PATH;
+
+if (isMac) {
+    CLAUDE_APP_PATH = '/Applications/Claude.app';
+    RESOURCES_PATH = path.join(CLAUDE_APP_PATH, 'Contents', 'Resources');
+    INFO_PLIST_PATH = path.join(CLAUDE_APP_PATH, 'Contents', 'Info.plist');
+} else {
+    // Windows
+    CLAUDE_APP_PATH = path.join(process.env.LOCALAPPDATA, 'Programs', 'Claude');
+    RESOURCES_PATH = path.join(CLAUDE_APP_PATH, 'resources');
+}
+
 const ASAR_PATH = path.join(RESOURCES_PATH, 'app.asar');
 const BACKUP_PATH = path.join(RESOURCES_PATH, 'app.asar.bak');
-const INFO_PLIST_PATH = path.join(CLAUDE_APP_PATH, 'Contents', 'Info.plist');
 const TEMP_DIR = path.join(require('os').tmpdir(), 'claude-rtl-patcher-temp');
 
 const isRestore = process.argv.includes('--restore');
@@ -60,7 +77,7 @@ async function patch() {
         try {
             fs.copyFileSync(BACKUP_PATH, ASAR_PATH);
             spinner.succeed(chalk.green('Original Claude restored successfully!'));
-            console.log(chalk.gray('Restart Claude (Cmd+Q) to see the changes.'));
+            console.log(chalk.gray('Restart Claude to see the changes.'));
         } catch(e) {
             spinner.fail(chalk.red('Failed to restore backup: ' + e.message));
         }
@@ -68,7 +85,7 @@ async function patch() {
     }
 
     if (!fs.existsSync(ASAR_PATH)) {
-        console.error(chalk.red(`[!] Claude app not found at ${CLAUDE_APP_PATH}. Make sure it's installed in Applications.`));
+        console.error(chalk.red(`[!] Claude app not found at ${ASAR_PATH}. Please make sure it's installed.`));
         process.exit(1);
     }
 
@@ -134,34 +151,36 @@ async function patch() {
         process.exit(1);
     }
 
-    spinner = ora('Updating macOS security hashes and bypassing Gatekeeper...').start();
-    try {
-        const fileBuffer = fs.readFileSync(ASAR_PATH);
-        const newHash = crypto.createHash('sha256').update(fileBuffer).digest('hex');
+    if (isMac) {
+        spinner = ora('Updating macOS security hashes and bypassing Gatekeeper...').start();
+        try {
+            const fileBuffer = fs.readFileSync(ASAR_PATH);
+            const newHash = crypto.createHash('sha256').update(fileBuffer).digest('hex');
 
-        if (fs.existsSync(INFO_PLIST_PATH)) {
-            const plistData = fs.readFileSync(INFO_PLIST_PATH, 'utf8');
-            const parsed = plist.parse(plistData);
-            if (parsed?.ElectronAsarIntegrity?.['Resources/app.asar']) {
-                parsed.ElectronAsarIntegrity['Resources/app.asar'].hash = newHash;
-                fs.writeFileSync(INFO_PLIST_PATH, plist.build(parsed));
+            if (fs.existsSync(INFO_PLIST_PATH)) {
+                const plistData = fs.readFileSync(INFO_PLIST_PATH, 'utf8');
+                const parsed = plist.parse(plistData);
+                if (parsed?.ElectronAsarIntegrity?.['Resources/app.asar']) {
+                    parsed.ElectronAsarIntegrity['Resources/app.asar'].hash = newHash;
+                    fs.writeFileSync(INFO_PLIST_PATH, plist.build(parsed));
+                }
             }
+            
+            runCmd(`codesign --remove-signature "${CLAUDE_APP_PATH}" || true`);
+            runCmd(`xattr -cr "${CLAUDE_APP_PATH}" || true`);
+            spinner.succeed(chalk.green('macOS Security passed!'));
+        } catch(e) {
+            spinner.fail(chalk.red('Security bypass failed. Restoring backup...'));
+            fs.copyFileSync(BACKUP_PATH, ASAR_PATH);
+            process.exit(1);
         }
-        
-        runCmd(`codesign --remove-signature "${CLAUDE_APP_PATH}" || true`);
-        runCmd(`xattr -cr "${CLAUDE_APP_PATH}" || true`);
-        spinner.succeed(chalk.green('Security passed!'));
-    } catch(e) {
-        spinner.fail(chalk.red('Security bypass failed. Restoring backup...'));
-        fs.copyFileSync(BACKUP_PATH, ASAR_PATH);
-        process.exit(1);
     }
 
     fs.rmSync(TEMP_DIR, { recursive: true, force: true });
     
     console.log('\n=================================================');
     console.log(chalk.bold.green('✨ DONE! Claude is now optimized for Persian!'));
-    console.log(chalk.gray('Please FULLY RESTART Claude (Cmd+Q) to apply changes.'));
+    console.log(chalk.gray('Please FULLY RESTART Claude to apply changes.'));
     console.log(chalk.gray('To revert changes anytime, run: npx claude-rtl-patcher --restore'));
     console.log('=================================================\n');
 }
