@@ -51,6 +51,11 @@ npx claude-rtl-patcher /home/user/.local/share/Claude/resources/app.asar
 
 ---
 
+## ⚠️ Known limitation: Windows MSIX/AppX installs
+If Claude Desktop on Windows was installed as an **MSIX/AppX package** (path contains `WindowsApps`), this tool **will refuse to patch it**. That location is owned by `TrustedInstaller` and isn't writable even as Administrator, and MSIX packages carry their own integrity verification that can silently revert in-place file edits anyway. There is currently no supported workaround — this is a Windows packaging limitation, not a bug we can patch around. See [#6](https://github.com/m4tinbeigi-official/claude-rtl-patcher/issues/6) for details and discussion.
+
+---
+
 ## ⏪ How to Restore
 If you ever want to revert Claude to its original state, just run:
 ```bash

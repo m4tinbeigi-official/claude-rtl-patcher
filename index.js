@@ -168,6 +168,22 @@ try {
 `;
     console.log('');
     if (autoNote) console.log(chalk.blue(`[i] ${autoNote}`));
+
+    // Windows MSIX/AppX installs live under WindowsApps, which is owned by
+    // TrustedInstaller and isn't writable even as Administrator. Worse, MSIX
+    // has its own package-integrity verification, so even a forced write is
+    // likely to get silently reverted by Windows. Fail fast with a clear
+    // explanation instead of a confusing EPERM mid-backup (see issue #6).
+    if (isWin && /\\WindowsApps\\/i.test(ASAR_PATH)) {
+        console.error(chalk.red('[!] Claude Desktop appears to be installed as an MSIX/AppX package:'));
+        console.error(chalk.red(`    ${ASAR_PATH}`));
+        console.log(chalk.yellow('This location is locked by Windows (TrustedInstaller-owned) and is not writable,'));
+        console.log(chalk.yellow('even as Administrator. MSIX packages also carry their own integrity checks that'));
+        console.log(chalk.yellow('can silently revert in-place patches even if the write succeeded.'));
+        console.log(chalk.yellow('This tool currently does not support MSIX installs of Claude Desktop on Windows.'));
+        process.exit(1);
+    }
+
     if (!fs.existsSync(ASAR_PATH)) {
         console.error(chalk.red(`[!] Claude app not found at ${ASAR_PATH}.`));
         console.log(chalk.yellow('If you installed Claude in a custom location, you can pass the path as an argument:'));
@@ -252,7 +268,11 @@ try {
                 }
             }
             
-            runCmd(`codesign --remove-signature "${CLAUDE_APP_PATH}" || true`);
+            // NOTE: plain `codesign --remove-signature` leaves the app completely
+            // unsigned, which Apple Silicon refuses to launch at all (see issue #7).
+            // Re-signing ad-hoc (-s -) keeps it launchable while still reflecting
+            // our modified contents.
+            runCmd(`codesign --force --deep --sign - "${CLAUDE_APP_PATH}" || true`);
             runCmd(`xattr -cr "${CLAUDE_APP_PATH}" || true`);
             spinner.succeed(chalk.green('macOS Security passed!'));
         } catch(e) {
