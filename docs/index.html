@@ -1,0 +1,91 @@
+<!doctype html>
+<html lang="fa" dir="rtl">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <meta name="description" content="Claude RTL Patcher — پشتیبانی از فارسی، عربی و عبری در Claude Desktop با فونت وزیرمتن.">
+  <meta name="theme-color" content="#0b1020">
+  <title>Claude RTL Patcher | پشتیبانی فارسی در Claude Desktop</title>
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&family=Vazirmatn:wght@400;500;600;700;800&display=swap" rel="stylesheet">
+  <link rel="stylesheet" href="styles.css">
+</head>
+<body>
+  <header class="site-header">
+    <a class="brand" href="#top" aria-label="Claude RTL Patcher">
+      <span class="brand-mark">↔</span><span>Claude <b>RTL</b></span>
+    </a>
+    <nav aria-label="Main navigation">
+      <a href="#features" data-fa="ویژگی‌ها" data-en="Features">ویژگی‌ها</a>
+      <a href="#install" data-fa="نصب" data-en="Install">نصب</a>
+      <a href="#support" data-fa="پشتیبانی" data-en="Support">پشتیبانی</a>
+      <button class="lang-toggle" id="langToggle" type="button">English</button>
+      <a class="github-link" href="https://github.com/m4tinbeigi-official/claude-rtl-patcher" target="_blank" rel="noreferrer">GitHub ↗</a>
+    </nav>
+  </header>
+
+  <main id="top">
+    <section class="hero container">
+      <div class="hero-copy">
+        <div class="eyebrow"><span class="pulse"></span><span data-fa="متن راست‌چین، تجربه‌ای طبیعی‌تر" data-en="Native-feeling RTL, beautifully">متن راست‌چین، تجربه‌ای طبیعی‌تر</span></div>
+        <h1 data-fa="Claude را برای فارسی، عربی و عبری آماده کنید." data-en="Make Claude feel native in RTL languages.">Claude را برای فارسی، عربی و عبری آماده کنید.</h1>
+        <p class="lead" data-fa="یک patcher متن‌باز برای Claude Desktop که فونت وزیرمتن و پشتیبانی RTL را به‌صورت خودکار و امن اضافه می‌کند." data-en="An open-source patcher that adds Vazirmatn typography and robust RTL support to Claude Desktop — automatically and safely.">یک patcher متن‌باز برای Claude Desktop که فونت وزیرمتن و پشتیبانی RTL را به‌صورت خودکار و امن اضافه می‌کند.</p>
+        <div class="hero-actions">
+          <a class="button primary" href="https://github.com/m4tinbeigi-official/claude-rtl-patcher/releases/latest" target="_blank" rel="noreferrer"><span data-fa="دانلود آخرین نسخه" data-en="Download latest release">دانلود آخرین نسخه</span> ↓</a>
+          <a class="button secondary" href="#install"><span data-fa="شروع سریع" data-en="Quick start">شروع سریع</span> →</a>
+        </div>
+        <div class="hero-meta"><span>MIT License</span><span>macOS · Windows · Linux</span><span>Open source</span></div>
+      </div>
+      <div class="hero-art" aria-label="RTL typography preview">
+        <div class="window-bar"><i></i><i></i><i></i><span>Claude Desktop</span></div>
+        <div class="chat-line muted">سلام، امروز چطور می‌تونم کمکتون کنم؟</div>
+        <div class="chat-line user">یک متن فارسی زیبا و خوانا ✨</div>
+        <div class="chat-line answer">فونت وزیرمتن و جهت راست‌به‌چپ، بدون تنظیمات پیچیده.</div>
+        <div class="code-chip">Vazirmatn <span>RTL</span></div>
+      </div>
+    </section>
+
+    <section class="stats container" aria-label="Project stats">
+      <div><strong>v1.1.2</strong><span data-fa="آخرین انتشار" data-en="Latest release">آخرین انتشار</span></div>
+      <div><strong>۵</strong><span data-fa="گزارش حل‌شده" data-en="Issues resolved">گزارش حل‌شده</span></div>
+      <div><strong>۴</strong><span data-fa="سیستم‌عامل/معماری اصلی" data-en="Core targets">سیستم‌عامل/معماری اصلی</span></div>
+      <div><strong>MIT</strong><span data-fa="مجوز متن‌باز" data-en="Open-source license">مجوز متن‌باز</span></div>
+    </section>
+
+    <section class="section container" id="features">
+      <div class="section-heading"><span class="kicker">01 / <span data-fa="ویژگی‌ها" data-en="Features">ویژگی‌ها</span></span><h2 data-fa="یک تجربه ساده، از نصب تا اجرا." data-en="A simpler path from install to launch.">یک تجربه ساده، از نصب تا اجرا.</h2></div>
+      <div class="feature-grid">
+        <article class="card"><span class="icon">Aa</span><h3 data-fa="تایپوگرافی فارسی" data-en="Persian typography">تایپوگرافی فارسی</h3><p data-fa="فونت Vazirmatn برای خوانایی بهتر در گفتگوها و رابط کاربری Claude." data-en="Vazirmatn typography for clearer conversations and a more polished Claude UI.">فونت Vazirmatn برای خوانایی بهتر در گفتگوها و رابط کاربری Claude.</p></article>
+        <article class="card"><span class="icon">↔</span><h3 data-fa="RTL هوشمند" data-en="Smart RTL mode">RTL هوشمند</h3><p data-fa="نسخه Claude را تشخیص می‌دهد و فقط در صورت نیاز patch کامل RTL را اعمال می‌کند." data-en="Detects the Claude version and applies full RTL only when native support is not already available.">نسخه Claude را تشخیص می‌دهد و فقط در صورت نیاز patch کامل RTL را اعمال می‌کند.</p></article>
+        <article class="card"><span class="icon">⌘</span><h3 data-fa="امن و قابل بازگشت" data-en="Safe and reversible">امن و قابل بازگشت</h3><p data-fa="قبل از تغییر backup می‌سازد، integrity macOS را به‌روزرسانی می‌کند و restore دارد." data-en="Creates a backup, updates macOS integrity metadata, and includes a restore path.">قبل از تغییر backup می‌سازد، integrity macOS را به‌روزرسانی می‌کند و restore دارد.</p></article>
+      </div>
+    </section>
+
+    <section class="section install-section" id="install">
+      <div class="container install-layout">
+        <div class="section-heading"><span class="kicker">02 / <span data-fa="نصب" data-en="Install">نصب</span></span><h2 data-fa="یک دستور. تمام مراحل." data-en="One command. Everything handled.">یک دستور. تمام مراحل.</h2><p data-fa="از نسخه ۱.۱.۲ فایل‌های اجرایی مستقل منتشر می‌شوند؛ Node.js لازم نیست." data-en="Since v1.1.2, standalone binaries are published for the main desktop targets — no Node.js required.">از نسخه ۱.۱.۲ فایل‌های اجرایی مستقل منتشر می‌شوند؛ Node.js لازم نیست.</p></div>
+        <div class="install-card">
+          <div class="install-tabs"><button class="tab active" data-tab="unix">macOS / Linux</button><button class="tab" data-tab="windows">Windows</button></div>
+          <div class="command" id="unix"><code>curl -fsSL https://raw.githubusercontent.com/m4tinbeigi-official/claude-rtl-patcher/main/install.sh | bash</code><button class="copy" data-copy="curl -fsSL https://raw.githubusercontent.com/m4tinbeigi-official/claude-rtl-patcher/main/install.sh | bash" aria-label="Copy command">⧉</button></div>
+          <div class="command hidden" id="windows"><code>irm https://raw.githubusercontent.com/m4tinbeigi-official/claude-rtl-patcher/main/install.ps1 | iex</code><button class="copy" data-copy="irm https://raw.githubusercontent.com/m4tinbeigi-official/claude-rtl-patcher/main/install.ps1 | iex" aria-label="Copy command">⧉</button></div>
+          <p class="install-note" data-fa="نصب‌کننده مسیر Claude را تشخیص می‌دهد، backup می‌گیرد و منوی patch را اجرا می‌کند." data-en="The installer detects Claude, creates a backup, and launches the patch menu.">نصب‌کننده مسیر Claude را تشخیص می‌دهد، backup می‌گیرد و منوی patch را اجرا می‌کند.</p>
+        </div>
+      </div>
+    </section>
+
+    <section class="section container" id="support">
+      <div class="section-heading"><span class="kicker">03 / <span data-fa="پشتیبانی" data-en="Support">پشتیبانی</span></span><h2 data-fa="شفاف درباره محدودیت‌ها." data-en="Clear about limitations.">شفاف درباره محدودیت‌ها.</h2></div>
+      <div class="support-grid">
+        <div class="support-item"><span class="support-dot green"></span><div><h3 data-fa="پشتیبانی می‌شود" data-en="Supported">پشتیبانی می‌شود</h3><p>macOS Intel / Apple Silicon · Windows x64 · Linux x64</p></div></div>
+        <div class="support-item"><span class="support-dot amber"></span><div><h3 data-fa="محدودیت Windows MSIX" data-en="Windows MSIX limitation">محدودیت Windows MSIX</h3><p data-fa="پوشه WindowsApps توسط TrustedInstaller قفل است؛ این نصب‌ها عمداً patch نمی‌شوند." data-en="WindowsApps is TrustedInstaller-owned; MSIX installs are intentionally rejected instead of failing halfway.">پوشه WindowsApps توسط TrustedInstaller قفل است؛ این نصب‌ها عمداً patch نمی‌شوند.</p></div></div>
+      </div>
+    </section>
+
+    <section class="cta container"><div><span class="kicker">04 / <span data-fa="همکاری" data-en="Contribute">همکاری</span></span><h2 data-fa="RTL را برای همه بهتر کنیم." data-en="Make RTL better for everyone.">RTL را برای همه بهتر کنیم.</h2></div><a class="button primary" href="https://github.com/m4tinbeigi-official/claude-rtl-patcher" target="_blank" rel="noreferrer"><span data-fa="مشاهده مخزن" data-en="View repository">مشاهده مخزن</span> ↗</a></section>
+  </main>
+
+  <footer class="footer container"><span>© 2026 Claude RTL Patcher</span><span>Built with Vazirmatn · <a href="https://github.com/m4tinbeigi-official/claude-rtl-patcher" target="_blank" rel="noreferrer">GitHub</a></span></footer>
+  <script src="app.js"></script>
+</body>
+</html>
