@@ -56,6 +56,22 @@ If Claude Desktop on Windows was installed as an **MSIX/AppX package** (path con
 
 ---
 
+## 🐛 Issue reports and fixes
+
+The following fixes were implemented from community reports in [issues #4–#8](https://github.com/m4tinbeigi-official/claude-rtl-patcher/issues):
+
+| Issue | Reported by | Report | Resolution |
+|---|---|---|---|
+| [#4](https://github.com/m4tinbeigi-official/claude-rtl-patcher/issues/4) | [amirhyz](https://github.com/amirhyz) | `plist@5` crashed the CommonJS `require('plist')` import with `ERR_PACKAGE_PATH_NOT_EXPORTED`. | Pinned `plist` to the CommonJS-compatible 3.x line and refreshed the lockfile. |
+| [#5](https://github.com/m4tinbeigi-official/claude-rtl-patcher/issues/5) | [mkhrezaee](https://github.com/mkhrezaee) | The same ESM-only `plist@5` failure affected Windows and Node.js 22. | Kept the runtime on the compatible CommonJS dependency and added regression coverage. |
+| [#6](https://github.com/m4tinbeigi-official/claude-rtl-patcher/issues/6) | [mkhrezaee](https://github.com/mkhrezaee) | Windows MSIX/AppX installs under `WindowsApps` are not writable and can be reverted by package integrity checks. | Added WindowsApps detection, a clear fail-fast message, and documented the unsupported packaging limitation. |
+| [#7](https://github.com/m4tinbeigi-official/claude-rtl-patcher/issues/7) | [mahsakiani](https://github.com/mahsakiani) | Patching the latest macOS build invalidated the ASAR integrity metadata and code signature. | Recompute `Info.plist` ASAR integrity, ad-hoc re-sign the bundle, verify it, and keep rollback atomic. |
+| [#8](https://github.com/m4tinbeigi-official/claude-rtl-patcher/issues/8) | [Ehsan-rvp](https://github.com/Ehsan-rvp) | `ERR_PACKAGE_PATH_NOT_EXPORTED` on Node.js 22/24 prevented startup. | Covered by the `plist` compatibility fix and lockfile update above. |
+
+The original issue threads remain available for reproduction details and discussion.
+
+---
+
 ## ⏪ How to Restore
 If you ever want to revert Claude to its original state, just run:
 ```bash

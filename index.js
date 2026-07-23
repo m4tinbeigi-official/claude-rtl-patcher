@@ -5,12 +5,13 @@ const path = require('path');
 const asar = require('@electron/asar');
 const plist = require('plist');
 const crypto = require('crypto');
-const { execSync } = require('child_process');
 const chalk = require('chalk');
 const ora = require('ora');
 const figlet = require('figlet');
 const inquirer = require('inquirer');
 const fontCss = require('./font.js');
+const { resolveAppPaths, isWindowsAppsPath } = require('./lib/platform');
+const { reSignMacApp } = require('./lib/macos');
 
 const isMac = process.platform === 'darwin';
 const isWin = process.platform === 'win32';
@@ -61,38 +62,20 @@ function detectInstalledVersion(appPath, resourcesPath) {
     return null;
 }
 
-let CLAUDE_APP_PATH, RESOURCES_PATH, INFO_PLIST_PATH, ASAR_PATH, BACKUP_PATH;
-
-if (customPathArg) {
-    if (customPathArg.endsWith('app.asar')) {
-        ASAR_PATH = customPathArg;
-        RESOURCES_PATH = path.dirname(ASAR_PATH);
-        CLAUDE_APP_PATH = path.dirname(RESOURCES_PATH);
-    } else {
-        CLAUDE_APP_PATH = customPathArg;
-        RESOURCES_PATH = path.join(CLAUDE_APP_PATH, 'resources');
-        if (!fs.existsSync(RESOURCES_PATH) && isMac) RESOURCES_PATH = path.join(CLAUDE_APP_PATH, 'Contents', 'Resources');
-        ASAR_PATH = path.join(RESOURCES_PATH, 'app.asar');
-    }
-} else {
-    if (isMac) {
-        CLAUDE_APP_PATH = '/Applications/Claude.app';
-        RESOURCES_PATH = path.join(CLAUDE_APP_PATH, 'Contents', 'Resources');
-        INFO_PLIST_PATH = path.join(CLAUDE_APP_PATH, 'Contents', 'Info.plist');
-    } else if (isWin) {
-        CLAUDE_APP_PATH = path.join(process.env.LOCALAPPDATA || process.env.APPDATA || '', 'Programs', 'Claude');
-        RESOURCES_PATH = path.join(CLAUDE_APP_PATH, 'resources');
-    } else if (isLinux) {
-        CLAUDE_APP_PATH = '/opt/Claude';
-        RESOURCES_PATH = path.join(CLAUDE_APP_PATH, 'resources');
-    } else {
-        console.error(chalk.red('[!] Auto-detection failed. Please provide the path to your Claude installation manually.'));
-        process.exit(1);
-    }
-    ASAR_PATH = path.join(RESOURCES_PATH, 'app.asar');
+let resolvedPaths;
+try {
+    resolvedPaths = resolveAppPaths({ customPath: customPathArg, platform: process.platform });
+} catch (error) {
+    console.error(chalk.red(`[!] ${error.message}`));
+    process.exit(1);
 }
-
-BACKUP_PATH = path.join(RESOURCES_PATH, 'app.asar.bak');
+const {
+    appPath: CLAUDE_APP_PATH,
+    resourcesPath: RESOURCES_PATH,
+    infoPlistPath: INFO_PLIST_PATH,
+    asarPath: ASAR_PATH,
+    backupPath: BACKUP_PATH
+} = resolvedPaths;
 const TEMP_DIR = path.join(require('os').tmpdir(), 'claude-rtl-patcher-temp');
 
 const CSS_INJECT_FULL = `
@@ -114,12 +97,22 @@ ${fontCss}
 * { font-family: 'Vazirmatn', ui-sans-serif, system-ui, sans-serif !important; }
 `;
 
-function runCmd(cmd) {
-    try {
-        execSync(cmd, { stdio: 'pipe' });
-    } catch (err) {
-        throw new Error(`Command failed: ${cmd}`);
+function updateMacAsarIntegrity(asarPath, infoPlistPath) {
+    if (!isMac || !infoPlistPath || !fs.existsSync(infoPlistPath)) return;
+
+    const fileBuffer = fs.readFileSync(asarPath);
+    const newHash = crypto.createHash('sha256').update(fileBuffer).digest('hex');
+    const plistData = fs.readFileSync(infoPlistPath, 'utf8');
+    const parsed = plist.parse(plistData);
+    if (parsed?.ElectronAsarIntegrity?.['Resources/app.asar']) {
+        parsed.ElectronAsarIntegrity['Resources/app.asar'].hash = newHash;
+        fs.writeFileSync(infoPlistPath, plist.build(parsed));
     }
+}
+
+function restoreMacAppState(asarPath, infoPlistPath, appPath) {
+    updateMacAsarIntegrity(asarPath, infoPlistPath);
+    if (appPath) reSignMacApp(appPath);
 }
 
 async function restoreClaude() {
@@ -129,11 +122,20 @@ async function restoreClaude() {
         spinner.fail(chalk.red('No backup found! Claude is already in its original state.'));
         process.exit(1);
     }
+    const originalInfoPlist = isMac && INFO_PLIST_PATH && fs.existsSync(INFO_PLIST_PATH)
+        ? fs.readFileSync(INFO_PLIST_PATH)
+        : null;
     try {
         fs.copyFileSync(BACKUP_PATH, ASAR_PATH);
+        if (isMac && INFO_PLIST_PATH) {
+            // The backup is the source of truth after a restore; update the
+            // Electron integrity entry and make the bundle launchable again.
+            restoreMacAppState(ASAR_PATH, INFO_PLIST_PATH, CLAUDE_APP_PATH);
+        }
         spinner.succeed(chalk.green('Original Claude restored successfully!'));
         console.log(chalk.gray('Restart Claude to see the changes.'));
     } catch(e) {
+        if (originalInfoPlist) fs.writeFileSync(INFO_PLIST_PATH, originalInfoPlist);
         spinner.fail(chalk.red('Failed to restore backup: ' + e.message));
         process.exit(1);
     }
@@ -174,7 +176,7 @@ try {
     // has its own package-integrity verification, so even a forced write is
     // likely to get silently reverted by Windows. Fail fast with a clear
     // explanation instead of a confusing EPERM mid-backup (see issue #6).
-    if (isWin && /\\WindowsApps\\/i.test(ASAR_PATH)) {
+    if (isWin && isWindowsAppsPath(ASAR_PATH)) {
         console.error(chalk.red('[!] Claude Desktop appears to be installed as an MSIX/AppX package:'));
         console.error(chalk.red(`    ${ASAR_PATH}`));
         console.log(chalk.yellow('This location is locked by Windows (TrustedInstaller-owned) and is not writable,'));
@@ -255,29 +257,20 @@ try {
 
     if (isMac && INFO_PLIST_PATH) {
         spinner = ora('Updating macOS security hashes and bypassing Gatekeeper...').start();
+        const originalInfoPlist = fs.existsSync(INFO_PLIST_PATH)
+            ? fs.readFileSync(INFO_PLIST_PATH)
+            : null;
         try {
-            const fileBuffer = fs.readFileSync(ASAR_PATH);
-            const newHash = crypto.createHash('sha256').update(fileBuffer).digest('hex');
-
-            if (fs.existsSync(INFO_PLIST_PATH)) {
-                const plistData = fs.readFileSync(INFO_PLIST_PATH, 'utf8');
-                const parsed = plist.parse(plistData);
-                if (parsed?.ElectronAsarIntegrity?.['Resources/app.asar']) {
-                    parsed.ElectronAsarIntegrity['Resources/app.asar'].hash = newHash;
-                    fs.writeFileSync(INFO_PLIST_PATH, plist.build(parsed));
-                }
-            }
+            updateMacAsarIntegrity(ASAR_PATH, INFO_PLIST_PATH);
             
-            // NOTE: plain `codesign --remove-signature` leaves the app completely
-            // unsigned, which Apple Silicon refuses to launch at all (see issue #7).
-            // Re-signing ad-hoc (-s -) keeps it launchable while still reflecting
-            // our modified contents.
-            runCmd(`codesign --force --deep --sign - "${CLAUDE_APP_PATH}" || true`);
-            runCmd(`xattr -cr "${CLAUDE_APP_PATH}" || true`);
+            // Re-sign the entire bundle ad-hoc and verify it. Do not hide failures:
+            // an unsigned or partially signed app cannot launch on Apple Silicon.
+            reSignMacApp(CLAUDE_APP_PATH);
             spinner.succeed(chalk.green('macOS Security passed!'));
         } catch(e) {
             spinner.fail(chalk.red('Security bypass failed. Restoring backup...'));
             fs.copyFileSync(BACKUP_PATH, ASAR_PATH);
+            if (originalInfoPlist) fs.writeFileSync(INFO_PLIST_PATH, originalInfoPlist);
             process.exit(1);
         }
     }
