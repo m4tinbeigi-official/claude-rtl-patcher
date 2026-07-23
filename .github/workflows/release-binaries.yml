@@ -16,7 +16,7 @@ jobs:
           - runner: ubuntu-latest
             target: node22-linux-x64
             asset: claude-rtl-patcher-linux-x64
-          - runner: macos-13
+          - runner: macos-15-intel
             target: node22-macos-x64
             asset: claude-rtl-patcher-macos-x64
           - runner: macos-14
