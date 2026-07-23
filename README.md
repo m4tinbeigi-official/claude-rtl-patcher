@@ -33,6 +33,19 @@ npx claude-rtl-patcher
 
 Once finished, fully close Claude (`Cmd + Q` or `Ctrl + Q`) and reopen it.
 
+### Standalone installer (no Node.js required)
+Release binaries are built automatically for macOS, Windows, and Linux. After a release is published, download the matching asset or run the bootstrap command:
+
+```bash
+# macOS / Linux
+curl -fsSL https://raw.githubusercontent.com/m4tinbeigi-official/claude-rtl-patcher/main/install.sh | bash
+
+# Windows PowerShell
+irm https://raw.githubusercontent.com/m4tinbeigi-official/claude-rtl-patcher/main/install.ps1 | iex
+```
+
+The standalone build installs the patcher for the current user, detects the operating system and Claude path, creates a backup, and launches the same interactive patch flow. Windows MSIX/AppX installs remain unsupported because their package files are not writable.
+
 ### Forcing a specific mode
 \`\`\`bash
 npx claude-rtl-patcher --font-only   # only apply Vazirmatn, skip RTL/direction changes

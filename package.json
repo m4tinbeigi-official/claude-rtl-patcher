@@ -5,7 +5,8 @@
   "main": "index.js",
   "bin": "./index.js",
   "scripts": {
-    "test": "node --test"
+    "test": "node --test",
+    "build:binaries": "npx --yes @yao-pkg/pkg@6.21.0 . --public-packages '*' --output dist/claude-rtl-patcher"
   },
   "repository": {
     "type": "git",
@@ -31,6 +32,10 @@
   },
   "homepage": "https://github.com/m4tinbeigi-official/claude-rtl-patcher#readme",
   "type": "commonjs",
+  "pkg": {
+    "scripts": ["index.js", "lib/**/*.js"],
+    "assets": ["font.js", "node_modules/@fontsource/vazirmatn/**/*"]
+  },
   "dependencies": {
     "@electron/asar": "^4.2.0",
     "@fontsource/vazirmatn": "^5.3.0",
