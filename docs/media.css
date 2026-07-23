@@ -1,0 +1,10 @@
+.media-grid{display:grid;grid-template-columns:repeat(2,1fr);gap:15px}
+.media-card{position:relative;display:block;border:1px solid var(--line);border-radius:14px;padding:24px;background:linear-gradient(145deg,var(--panel),#0d1222);transition:transform .2s,border-color .2s;min-height:155px}
+.media-card:hover{transform:translateY(-3px);border-color:#a996ff66}
+.media-card.featured{border-color:#57e6d34d;background:linear-gradient(145deg,#142c35,#11182b)}
+.media-label{display:block;color:var(--cyan);font:700 .68rem Inter,sans-serif;letter-spacing:.13em;direction:ltr}
+.media-card h3{margin:15px 0 4px;font-size:1rem}
+.media-card p{color:var(--muted);font-size:.8rem;margin:0;max-width:440px}
+.media-card a{color:var(--cyan);font-size:.78rem}
+.media-arrow{position:absolute;inset-inline-end:22px;top:22px;color:var(--purple);font:700 1.1rem Inter,sans-serif;direction:ltr}
+@media(max-width:800px){.media-grid{grid-template-columns:1fr}}
