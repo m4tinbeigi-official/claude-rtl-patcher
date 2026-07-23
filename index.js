@@ -20,7 +20,46 @@ const isLinux = process.platform === 'linux';
 const customPathArg = process.argv.find(arg => arg.includes('Claude') || arg.includes('app.asar') || arg.includes('resources'));
 const isRestoreFlag = process.argv.includes('--restore');
 const isPatchFlag = process.argv.includes('--patch');
-const isAuto = isRestoreFlag || isPatchFlag;
+const isFontOnlyFlag = process.argv.includes('--font-only');
+const isForceFullFlag = process.argv.includes('--full') || process.argv.includes('--rtl');
+const isAuto = isRestoreFlag || isPatchFlag || isFontOnlyFlag || isForceFullFlag;
+
+// Claude Desktop shipped native RTL support starting around this version.
+// NOTE for maintainers: bump this the moment a release is confirmed to render
+// Persian/Arabic/Hebrew correctly out of the box in the Chat tab (not just Code).
+// Until then this is a best-effort guess and the user can always override with
+// --font-only or --full.
+const NATIVE_RTL_MIN_VERSION = '1.2.0'; // TODO: confirm against real changelog
+
+function compareVersions(a, b) {
+    const pa = a.split('.').map(Number);
+    const pb = b.split('.').map(Number);
+    for (let i = 0; i < Math.max(pa.length, pb.length); i++) {
+        const na = pa[i] || 0, nb = pb[i] || 0;
+        if (na !== nb) return na - nb;
+    }
+    return 0;
+}
+
+function detectInstalledVersion(appPath, resourcesPath) {
+    try {
+        if (isMac) {
+            const infoPlistPath = path.join(appPath, 'Contents', 'Info.plist');
+            if (fs.existsSync(infoPlistPath)) {
+                const parsed = plist.parse(fs.readFileSync(infoPlistPath, 'utf8'));
+                if (parsed?.CFBundleShortVersionString) return parsed.CFBundleShortVersionString;
+            }
+        }
+        const pkgPath = path.join(resourcesPath, 'app-update.yml');
+        if (fs.existsSync(pkgPath)) {
+            const match = fs.readFileSync(pkgPath, 'utf8').match(/version:\s*([\d.]+)/);
+            if (match) return match[1];
+        }
+    } catch (e) {
+        // ignore — fall through to null (unknown version)
+    }
+    return null;
+}
 
 let CLAUDE_APP_PATH, RESOURCES_PATH, INFO_PLIST_PATH, ASAR_PATH, BACKUP_PATH;
 
@@ -56,7 +95,7 @@ if (customPathArg) {
 BACKUP_PATH = path.join(RESOURCES_PATH, 'app.asar.bak');
 const TEMP_DIR = path.join(require('os').tmpdir(), 'claude-rtl-patcher-temp');
 
-const CSS_INJECT = `
+const CSS_INJECT_FULL = `
 /* RTL and Vazirmatn Font Patch */
 ${fontCss}
 * { font-family: 'Vazirmatn', ui-sans-serif, system-ui, sans-serif !important; }
@@ -66,12 +105,13 @@ p, div, span, h1, h2, h3, h4, h5, h6, textarea, input, .ProseMirror, [contentedi
 }
 `;
 
-const JS_INJECT = `
-// Injected for Persian/Arabic/Hebrew support
-try { 
-  require('electron/renderer').webFrame.insertCSS(\`${CSS_INJECT.replace(/\n/g, ' ')}\`); 
-  console.log("%c✨ RTL applied by Rick Sanchez and Vazirmatn font used in memory of Saber Rastikerdar ✨", "color: #00e5ff; font-size: 14px; font-weight: bold; background: #222; padding: 5px; border-radius: 5px;");
-} catch(e) {}
+// Font-only variant: just swaps the typeface, no direction/bidi changes.
+// Useful on newer Claude builds that already ship native RTL support and only
+// need the Vazirmatn font applied on top of it.
+const CSS_INJECT_FONT_ONLY = `
+/* Vazirmatn Font Patch (font-only, no RTL/bidi changes) */
+${fontCss}
+* { font-family: 'Vazirmatn', ui-sans-serif, system-ui, sans-serif !important; }
 `;
 
 function runCmd(cmd) {
@@ -99,8 +139,35 @@ async function restoreClaude() {
     }
 }
 
-async function patchClaude() {
+async function patchClaude(fontOnlyOverride) {
+    let fontOnly;
+    let autoNote = '';
+    if (fontOnlyOverride === true || isFontOnlyFlag) {
+        fontOnly = true;
+    } else if (fontOnlyOverride === false || isForceFullFlag) {
+        fontOnly = false;
+    } else {
+        const detectedVersion = detectInstalledVersion(CLAUDE_APP_PATH, RESOURCES_PATH);
+        if (detectedVersion && compareVersions(detectedVersion, NATIVE_RTL_MIN_VERSION) >= 0) {
+            fontOnly = true;
+            autoNote = `Detected Claude v${detectedVersion} (native RTL) — applying Vazirmatn font only.`;
+        } else {
+            fontOnly = false;
+            autoNote = detectedVersion
+                ? `Detected Claude v${detectedVersion} (pre-native-RTL) — applying full RTL + font patch.`
+                : `Could not detect Claude version — applying full RTL + font patch to be safe. Use --font-only to override.`;
+        }
+    }
+    const cssPayload = fontOnly ? CSS_INJECT_FONT_ONLY : CSS_INJECT_FULL;
+    const jsPayload = `
+// Injected for Persian/Arabic/Hebrew support
+try { 
+  require('electron/renderer').webFrame.insertCSS(\`${cssPayload.replace(/\n/g, ' ')}\`); 
+  console.log("%c✨ ${fontOnly ? 'Vazirmatn font applied' : 'RTL applied'} by Rick Sanchez and Vazirmatn font used in memory of Saber Rastikerdar ✨", "color: #00e5ff; font-size: 14px; font-weight: bold; background: #222; padding: 5px; border-radius: 5px;");
+} catch(e) {}
+`;
     console.log('');
+    if (autoNote) console.log(chalk.blue(`[i] ${autoNote}`));
     if (!fs.existsSync(ASAR_PATH)) {
         console.error(chalk.red(`[!] Claude app not found at ${ASAR_PATH}.`));
         console.log(chalk.yellow('If you installed Claude in a custom location, you can pass the path as an argument:'));
@@ -141,11 +208,11 @@ async function patchClaude() {
                     injectIntoFiles(fullPath);
                 } else if (fullPath.endsWith('.css')) {
                     const content = fs.readFileSync(fullPath, 'utf8');
-                    if (!content.includes('Vazirmatn')) fs.appendFileSync(fullPath, CSS_INJECT);
+                    if (!content.includes('Vazirmatn')) fs.appendFileSync(fullPath, cssPayload);
                 } else if (fullPath.endsWith('.js')) {
                     if (fullPath.includes('mainView') || fullPath.includes('mainWindow') || fullPath.includes('buddy') || fullPath.includes('quickWindow') || fullPath.includes('aboutWindow') || fullPath.includes('findInPage')) {
                         const content = fs.readFileSync(fullPath, 'utf8');
-                        if (!content.includes('Saber Rastikerdar')) fs.appendFileSync(fullPath, JS_INJECT);
+                        if (!content.includes('Saber Rastikerdar')) fs.appendFileSync(fullPath, jsPayload);
                     }
                 }
             }
@@ -198,7 +265,11 @@ async function patchClaude() {
     fs.rmSync(TEMP_DIR, { recursive: true, force: true });
     
     console.log('\n=================================================');
-    console.log(chalk.bold.green('✨ DONE! Claude is now optimized for RTL languages!'));
+    if (fontOnly) {
+        console.log(chalk.bold.green('✨ DONE! Vazirmatn font applied (RTL/direction left untouched).'));
+    } else {
+        console.log(chalk.bold.green('✨ DONE! Claude is now optimized for RTL languages!'));
+    }
     console.log(chalk.gray('Please FULLY RESTART Claude to apply changes.'));
     console.log('=================================================\n');
 }
@@ -212,7 +283,7 @@ async function main() {
         await restoreClaude();
         return;
     }
-    if (isPatchFlag) {
+    if (isPatchFlag || isFontOnlyFlag || isForceFullFlag) {
         await patchClaude();
         return;
     }
@@ -224,15 +295,21 @@ async function main() {
             name: 'action',
             message: 'What would you like to do?',
             choices: [
-                { name: '✨ Apply RTL Patch & Vazirmatn Font (Persian/Arabic/Hebrew)', value: 'patch' },
+                { name: '🔍 Auto-detect (recommended — font-only on new Claude, full RTL patch on old)', value: 'auto' },
+                { name: '✨ Force Full RTL Patch & Vazirmatn Font (Persian/Arabic/Hebrew)', value: 'patch' },
+                { name: '🔤 Force Vazirmatn Font Only (no RTL/direction changes)', value: 'font-only' },
                 { name: '⏪ Restore Original Claude (Remove Patch)', value: 'restore' },
                 { name: '❌ Exit', value: 'exit' }
             ]
         }
     ]);
 
-    if (answers.action === 'patch') {
+    if (answers.action === 'auto') {
         await patchClaude();
+    } else if (answers.action === 'patch') {
+        await patchClaude(false);
+    } else if (answers.action === 'font-only') {
+        await patchClaude(true); // force font-only payload regardless of CLI flags
     } else if (answers.action === 'restore') {
         await restoreClaude();
     } else {

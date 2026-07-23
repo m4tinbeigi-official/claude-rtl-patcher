@@ -19,6 +19,8 @@
 This is an open-source, automated tool that injects robust **Right-to-Left (RTL)** support and the beautiful **Vazirmatn** font directly into the official **Claude Desktop App** (macOS, Windows, Linux).
 It fixes the broken text alignment for languages like **Persian (Farsi), Arabic, and Hebrew** so you can chat with Claude seamlessly.
 
+> **Auto-detect mode:** newer Claude Desktop builds already render RTL correctly on their own. When that's detected, the patcher automatically applies **only the Vazirmatn font** and leaves direction/alignment untouched. On older builds without native RTL, it still applies the full RTL + font patch. You can also force a mode manually with `--font-only` or `--full`.
+
 ## 🚀 One-Click Installation (Recommended)
 
 You do not need to download or install anything manually. Just open your system's terminal (CMD / PowerShell / Mac Terminal) and paste this magic command:
@@ -27,9 +29,15 @@ You do not need to download or install anything manually. Just open your system'
 npx claude-rtl-patcher
 ```
 
-*(The script features a beautiful interactive CLI that will automatically detect your OS, create a backup, inject the CSS, and bypass security constraints within seconds!)*
+*(The script features a beautiful interactive CLI that will automatically detect your OS and Claude version, create a backup, inject the right CSS for your case, and bypass security constraints within seconds!)*
 
 Once finished, fully close Claude (`Cmd + Q` or `Ctrl + Q`) and reopen it.
+
+### Forcing a specific mode
+\`\`\`bash
+npx claude-rtl-patcher --font-only   # only apply Vazirmatn, skip RTL/direction changes
+npx claude-rtl-patcher --full        # force the full RTL + font patch, even on new versions
+\`\`\`
 
 ---
 
