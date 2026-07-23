@@ -61,6 +61,22 @@ npx claude-rtl-patcher /home/user/.local/share/Claude/resources/app.asar
 
 ---
 
+## 🐛 گزارش‌های کاربران و مشکلات برطرف‌شده
+
+در جدول زیر گزارش‌های جامعه کاربران و اصلاحات انجام‌شده برای [Issueهای ۴ تا ۸](https://github.com/m4tinbeigi-official/claude-rtl-patcher/issues) آمده است:
+
+| Issue | گزارش‌دهنده | مشکل گزارش‌شده | اصلاح انجام‌شده |
+|---|---|---|---|
+| [#4](https://github.com/m4tinbeigi-official/claude-rtl-patcher/issues/4) | [amirhyz](https://github.com/amirhyz) | وابستگی `plist@5` با `require('plist')` سازگار نبود و خطای `ERR_PACKAGE_PATH_NOT_EXPORTED` می‌داد. | نسخه `plist` به شاخه سازگار ۳.x محدود و lockfile به‌روزرسانی شد. |
+| [#5](https://github.com/m4tinbeigi-official/claude-rtl-patcher/issues/5) | [mkhrezaee](https://github.com/mkhrezaee) | همین خطای ESM-only در ویندوز و Node.js 22 رخ می‌داد. | وابستگی CommonJS سازگار نگه داشته شد و پوشش تستی اضافه شد. |
+| [#6](https://github.com/m4tinbeigi-official/claude-rtl-patcher/issues/6) | [mkhrezaee](https://github.com/mkhrezaee) | نصب MSIX/AppX ویندوز در مسیر `WindowsApps` قابل‌نوشتن نیست و تغییرات آن ممکن است برگردانده شود. | تشخیص `WindowsApps`، توقف سریع با پیام واضح و مستندسازی این محدودیت اضافه شد. |
+| [#7](https://github.com/m4tinbeigi-official/claude-rtl-patcher/issues/7) | [mahsakiani](https://github.com/mahsakiani) | پچ نسخه‌های جدید macOS، hash داخل `Info.plist` و امضای برنامه را نامعتبر می‌کرد. | hash مجدداً محاسبه، bundle به‌صورت ad-hoc امضا و verify شد و rollback اتمیک شد. |
+| [#8](https://github.com/m4tinbeigi-official/claude-rtl-patcher/issues/8) | [Ehsan-rvp](https://github.com/Ehsan-rvp) | خطای `ERR_PACKAGE_PATH_NOT_EXPORTED` در Node.js 22/24 مانع اجرا می‌شد. | با اصلاح سازگاری `plist` و lockfile برطرف شد. |
+
+برای جزئیات بازتولید و گفت‌وگو، به خود issueها مراجعه کنید.
+
+---
+
 ## ⏪ نحوه بازگردانی به حالت اول (Restore)
 
 اگر به هر دلیلی خواستید کلود را به حالت اورجینال و اولیه خود برگردانید، فقط این دستور را اجرا کنید:
