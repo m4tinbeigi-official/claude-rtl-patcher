@@ -35,6 +35,22 @@ npx claude-rtl-patcher
 
 بعد از پایان کار، کلود را به صورت کامل ببندید (`Cmd + Q` یا `Ctrl + Q`) و دوباره باز کنید.
 
+### نصب‌کننده مستقل (بدون نیاز به Node.js)
+
+با انتشار هر نسخه، فایل اجرایی مستقل برای macOS، ویندوز و لینوکس به‌صورت خودکار ساخته می‌شود. در macOS و لینوکس می‌توانید نصب خودکار را با دستور زیر شروع کنید:
+
+```bash
+curl -fsSL https://raw.githubusercontent.com/m4tinbeigi-official/claude-rtl-patcher/main/install.sh | bash
+```
+
+در PowerShell ویندوز:
+
+```powershell
+irm https://raw.githubusercontent.com/m4tinbeigi-official/claude-rtl-patcher/main/install.ps1 | iex
+```
+
+این نسخه بدون نصب Node.js، سیستم‌عامل و مسیر Claude را تشخیص می‌دهد، بکاپ می‌سازد و همان فرآیند تعاملی patch را اجرا می‌کند. نصب‌های MSIX/AppX ویندوز همچنان به‌دلیل قفل بودن فایل‌های بسته پشتیبانی نمی‌شوند.
+
 ### انتخاب دستی حالت
 \`\`\`bash
 npx claude-rtl-patcher --font-only   # فقط فونت وزیرمتن، بدون تغییر جهت متن

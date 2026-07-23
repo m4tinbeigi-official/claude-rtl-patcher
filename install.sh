@@ -1,20 +1,30 @@
-#!/bin/bash
+#!/usr/bin/env bash
+set -euo pipefail
 
-echo -e "\033[1;36m=================================================================\033[0m"
-echo -e "\033[1;36m           Claude RTL & Persian Font Auto-Patcher                \033[0m"
-echo -e "\033[1;36m=================================================================\033[0m"
-echo ""
-
-# Check if Node is installed
-if ! command -v node &> /dev/null
-then
-    echo -e "\033[1;31m[!] Node.js is not installed on your system.\033[0m"
-    echo -e "\033[1;33mPlease install Node.js from https://nodejs.org/ and try again.\033[0m"
-    exit 1
-fi
-
-echo -e "\033[1;32m[+] Node.js detected. Running the patcher...\033[0m"
-echo ""
-
-# Run the npx command
-npx --yes claude-rtl-patcher "$@"
+repo="m4tinbeigi-official/claude-rtl-patcher"
+version="${CLAUDE_RTL_VERSION:-latest}"
+case "$(uname -s)" in
+  Darwin) platform="macos" ;;
+  Linux) platform="linux" ;;
+  *) echo "Unsupported operating system" >&2; exit 1 ;;
+esac
+case "$(uname -m)" in
+  x86_64|amd64) arch="x64" ;;
+  arm64|aarch64)
+    [[ "$platform" == "macos" ]] || { echo "Linux ARM64 builds are not available yet" >&2; exit 1; }
+    arch="arm64" ;;
+  *) echo "Unsupported CPU architecture" >&2; exit 1 ;;
+esac
+asset="claude-rtl-patcher-${platform}-${arch}"
+base="https://github.com/${repo}/releases"
+url="${base}/$([[ "$version" == latest ]] && echo latest/download || echo download/${version})/${asset}"
+install_dir="${CLAUDE_RTL_INSTALL_DIR:-${HOME}/.local/bin}"
+mkdir -p "$install_dir"
+tmp="$(mktemp)"
+trap 'rm -f "$tmp"' EXIT
+echo "Downloading ${asset}..."
+curl --fail --location --silent --show-error "$url" --output "$tmp"
+chmod 755 "$tmp"
+mv "$tmp" "${install_dir}/claude-rtl-patcher"
+echo "Installed to ${install_dir}/claude-rtl-patcher"
+exec "${install_dir}/claude-rtl-patcher" "$@"
