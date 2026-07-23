@@ -14,23 +14,23 @@ jobs:
       matrix:
         include:
           - runner: ubuntu-latest
-            target: node20-linux-x64
+            target: node22-linux-x64
             asset: claude-rtl-patcher-linux-x64
           - runner: macos-13
-            target: node20-macos-x64
+            target: node22-macos-x64
             asset: claude-rtl-patcher-macos-x64
           - runner: macos-14
-            target: node20-macos-arm64
+            target: node22-macos-arm64
             asset: claude-rtl-patcher-macos-arm64
           - runner: windows-latest
-            target: node20-win-x64
+            target: node22-win-x64
             asset: claude-rtl-patcher-windows-x64.exe
     runs-on: ${{ matrix.runner }}
     steps:
       - uses: actions/checkout@v4
       - uses: actions/setup-node@v4
         with:
-          node-version: 20
+          node-version: 22
       - run: npm ci
       - name: Build executable
         run: npx --yes @yao-pkg/pkg@6.21.0 . --target ${{ matrix.target }} --public-packages '*' --output dist/${{ matrix.asset }}
