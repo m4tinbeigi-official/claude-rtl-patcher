@@ -23,9 +23,9 @@ It fixes the broken text alignment for languages like **Persian (Farsi), Arabic,
 
 You do not need to download or install anything manually. Just open your system's terminal (CMD / PowerShell / Mac Terminal) and paste this magic command:
 
-\`\`\`bash
+```bash
 npx claude-rtl-patcher
-\`\`\`
+```
 
 *(The script features a beautiful interactive CLI that will automatically detect your OS, create a backup, inject the CSS, and bypass security constraints within seconds!)*
 
@@ -35,19 +35,19 @@ Once finished, fully close Claude (`Cmd + Q` or `Ctrl + Q`) and reopen it.
 
 ## 🐧 Custom Paths & Linux
 If you installed Claude in a custom directory, or you use an unofficial Linux wrapper, simply provide the path to your installation (or directly to the `app.asar` file) as an argument:
-\`\`\`bash
+```bash
 npx claude-rtl-patcher /opt/Claude
 # or directly to asar:
 npx claude-rtl-patcher /home/user/.local/share/Claude/resources/app.asar
-\`\`\`
+```
 
 ---
 
 ## ⏪ How to Restore
 If you ever want to revert Claude to its original state, just run:
-\`\`\`bash
+```bash
 npx claude-rtl-patcher --restore
-\`\`\`
+```
 Your original backup will be instantly restored.
 
 ---
