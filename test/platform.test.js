@@ -4,7 +4,7 @@ const crypto = require('crypto');
 const fs = require('fs');
 const { resolveAppPaths, isWindowsAppsPath } = require('../lib/platform');
 const { SAFE_ENTITLEMENTS, getAsarHeaderHash, reSignMacApp } = require('../lib/macos');
-const { CSS_INJECT_FONT_ONLY, CSS_INJECT_FULL } = require('../index');
+const { CSS_INJECT_FONT_ONLY, CSS_INJECT_FULL, FONT_TARGET_SELECTOR } = require('../index');
 
 test('resolves a custom macOS app bundle', () => {
     const paths = resolveAppPaths({
@@ -73,12 +73,18 @@ test('hashes the serialized ASAR header used by Electron integrity checks', () =
     assert.equal(getAsarHeaderHash('/tmp/app.asar', fakeAsar), expected);
 });
 
-test('scopes Vazirmatn away from application icons and code blocks', () => {
+test('applies Vazirmatn across the UI while excluding icons and code blocks', () => {
+    assert.match(FONT_TARGET_SELECTOR, /:where\(body, body \*\)/);
+    assert.match(FONT_TARGET_SELECTOR, /\[data-icon\]/);
+    assert.match(FONT_TARGET_SELECTOR, /\[class\*="icon" i\]/);
+    assert.match(FONT_TARGET_SELECTOR, /\[class\*="lucide" i\]/);
+    assert.match(FONT_TARGET_SELECTOR, /\[role="img"\]/);
+    assert.match(FONT_TARGET_SELECTOR, /\[aria-hidden="true"\]/);
+    assert.doesNotMatch(FONT_TARGET_SELECTOR, /button|toolbar/);
+
     for (const css of [CSS_INJECT_FONT_ONLY, CSS_INJECT_FULL]) {
         assert.equal(css.includes("* { font-family: 'Vazirmatn'"), false);
-        assert.match(css, /:not\(\[role="toolbar"\] \*\)/);
-        assert.match(css, /:not\(\[aria-hidden="true"\]\)/);
-        assert.match(css, /:not\(svg \*\)/);
+        assert.match(css, /:where\(body, body \*\)/);
+        assert.match(css, /font-family: ui-monospace/);
     }
-    assert.match(CSS_INJECT_FULL, /pre, code, kbd, samp/);
 });

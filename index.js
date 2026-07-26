@@ -77,30 +77,41 @@ const {
 } = resolvedPaths;
 const TEMP_DIR = path.join(require('os').tmpdir(), 'claude-rtl-patcher-temp');
 
-// Keep the font away from icon glyphs and application chrome. Text containers
-// still inherit Vazirmatn, while code and interactive controls keep their own
-// fonts. This avoids turning toolbar icons into missing-glyph rectangles.
-const RTL_TEXT_SELECTOR = [
-    ':where(p, li, blockquote, h1, h2, h3, h4, h5, h6, td, th, figcaption,',
-    ' textarea, input, .ProseMirror, [contenteditable], [dir="rtl"], [dir="auto"])',
-    ':not(pre):not(code):not(kbd):not(samp)',
-    ':not(button):not(button *):not(a):not(a *)',
-    ':not([role="button"]):not([role="button"] *)',
-    ':not([role="toolbar"]):not([role="toolbar"] *)',
-    ':not([aria-hidden="true"]):not([aria-hidden="true"] *)',
-    ':not(svg):not(svg *)'
+// Apply Vazirmatn throughout the UI, including text inside generic div/span
+// wrappers and controls. Only known icon roots (and their descendants) plus
+// code-like content are excluded, so their purpose-built fonts stay intact.
+const FONT_TARGET_SELECTOR = [
+    ':where(body, body *)',
+    ':not(:where(',
+    'svg, svg *,',
+    '[data-icon], [data-icon] *,',
+    '[class*="icon" i], [class*="icon" i] *,',
+    '[class*="lucide" i], [class*="lucide" i] *,',
+    '[class*="codicon" i], [class*="codicon" i] *,',
+    '[class*="material-symbol" i], [class*="material-symbol" i] *,',
+    '[role="img"], [role="img"] *,',
+    '[aria-hidden="true"], [aria-hidden="true"] *,',
+    'i:empty,',
+    'pre, pre *, code, code *, kbd, kbd *, samp, samp *',
+    '))'
 ].join('');
+
+const CODE_STYLE = `
+pre, code, kbd, samp, pre *, code *, kbd *, samp * {
+    font-family: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, monospace !important;
+}`;
 
 const CSS_INJECT_FULL = `
 /* RTL and Vazirmatn Font Patch */
 ${fontCss}
-${RTL_TEXT_SELECTOR} {
+${FONT_TARGET_SELECTOR} {
     font-family: 'Vazirmatn', ui-sans-serif, system-ui, sans-serif !important;
 }
-${RTL_TEXT_SELECTOR}:dir(rtl) {
+${FONT_TARGET_SELECTOR}:dir(rtl) {
     unicode-bidi: plaintext !important; 
     text-align: start !important; 
 }
+${CODE_STYLE}
 pre, code, kbd, samp, pre *, code *, kbd *, samp * {
     direction: ltr !important;
     text-align: left !important;
@@ -114,9 +125,10 @@ pre, code, kbd, samp, pre *, code *, kbd *, samp * {
 const CSS_INJECT_FONT_ONLY = `
 /* Vazirmatn Font Patch (font-only, no RTL/bidi changes) */
 ${fontCss}
-${RTL_TEXT_SELECTOR} {
+${FONT_TARGET_SELECTOR} {
     font-family: 'Vazirmatn', ui-sans-serif, system-ui, sans-serif !important;
 }
+${CODE_STYLE}
 `;
 
 function updateMacAsarIntegrity(asarPath, infoPlistPath) {
@@ -383,6 +395,6 @@ if (require.main === module) {
 module.exports = {
     CSS_INJECT_FONT_ONLY,
     CSS_INJECT_FULL,
-    RTL_TEXT_SELECTOR,
+    FONT_TARGET_SELECTOR,
     updateMacAsarIntegrity
 };
