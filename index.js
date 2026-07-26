@@ -4,14 +4,13 @@ const fs = require('fs');
 const path = require('path');
 const asar = require('@electron/asar');
 const plist = require('plist');
-const crypto = require('crypto');
 const chalk = require('chalk');
 const ora = require('ora');
 const figlet = require('figlet');
 const inquirer = require('inquirer');
 const fontCss = require('./font.js');
 const { resolveAppPaths, isWindowsAppsPath } = require('./lib/platform');
-const { reSignMacApp } = require('./lib/macos');
+const { getAsarHeaderHash, reSignMacApp } = require('./lib/macos');
 
 const isMac = process.platform === 'darwin';
 const isWin = process.platform === 'win32';
@@ -78,13 +77,34 @@ const {
 } = resolvedPaths;
 const TEMP_DIR = path.join(require('os').tmpdir(), 'claude-rtl-patcher-temp');
 
+// Keep the font away from icon glyphs and application chrome. Text containers
+// still inherit Vazirmatn, while code and interactive controls keep their own
+// fonts. This avoids turning toolbar icons into missing-glyph rectangles.
+const RTL_TEXT_SELECTOR = [
+    ':where(p, li, blockquote, h1, h2, h3, h4, h5, h6, td, th, figcaption,',
+    ' textarea, input, .ProseMirror, [contenteditable], [dir="rtl"], [dir="auto"])',
+    ':not(pre):not(code):not(kbd):not(samp)',
+    ':not(button):not(button *):not(a):not(a *)',
+    ':not([role="button"]):not([role="button"] *)',
+    ':not([role="toolbar"]):not([role="toolbar"] *)',
+    ':not([aria-hidden="true"]):not([aria-hidden="true"] *)',
+    ':not(svg):not(svg *)'
+].join('');
+
 const CSS_INJECT_FULL = `
 /* RTL and Vazirmatn Font Patch */
 ${fontCss}
-* { font-family: 'Vazirmatn', ui-sans-serif, system-ui, sans-serif !important; }
-p, div, span, h1, h2, h3, h4, h5, h6, textarea, input, .ProseMirror, [contenteditable] { 
+${RTL_TEXT_SELECTOR} {
+    font-family: 'Vazirmatn', ui-sans-serif, system-ui, sans-serif !important;
+}
+${RTL_TEXT_SELECTOR}:dir(rtl) {
     unicode-bidi: plaintext !important; 
     text-align: start !important; 
+}
+pre, code, kbd, samp, pre *, code *, kbd *, samp * {
+    direction: ltr !important;
+    text-align: left !important;
+    unicode-bidi: isolate;
 }
 `;
 
@@ -94,14 +114,17 @@ p, div, span, h1, h2, h3, h4, h5, h6, textarea, input, .ProseMirror, [contentedi
 const CSS_INJECT_FONT_ONLY = `
 /* Vazirmatn Font Patch (font-only, no RTL/bidi changes) */
 ${fontCss}
-* { font-family: 'Vazirmatn', ui-sans-serif, system-ui, sans-serif !important; }
+${RTL_TEXT_SELECTOR} {
+    font-family: 'Vazirmatn', ui-sans-serif, system-ui, sans-serif !important;
+}
 `;
 
 function updateMacAsarIntegrity(asarPath, infoPlistPath) {
     if (!isMac || !infoPlistPath || !fs.existsSync(infoPlistPath)) return;
 
-    const fileBuffer = fs.readFileSync(asarPath);
-    const newHash = crypto.createHash('sha256').update(fileBuffer).digest('hex');
+    // Electron verifies the SHA-256 of the serialized ASAR header, not the
+    // entire archive. Hashing the whole file makes the app abort at startup.
+    const newHash = getAsarHeaderHash(asarPath);
     const plistData = fs.readFileSync(infoPlistPath, 'utf8');
     const parsed = plist.parse(plistData);
     if (parsed?.ElectronAsarIntegrity?.['Resources/app.asar']) {
@@ -269,8 +292,16 @@ try {
             spinner.succeed(chalk.green('macOS Security passed!'));
         } catch(e) {
             spinner.fail(chalk.red('Security bypass failed. Restoring backup...'));
-            fs.copyFileSync(BACKUP_PATH, ASAR_PATH);
-            if (originalInfoPlist) fs.writeFileSync(INFO_PLIST_PATH, originalInfoPlist);
+            try {
+                fs.copyFileSync(BACKUP_PATH, ASAR_PATH);
+                if (originalInfoPlist) fs.writeFileSync(INFO_PLIST_PATH, originalInfoPlist);
+                // A failed or partial codesign can leave the bundle unusable
+                // even after its files are restored. Re-sign the rollback too.
+                restoreMacAppState(ASAR_PATH, INFO_PLIST_PATH, CLAUDE_APP_PATH);
+                console.error(chalk.green('Original app restored and re-signed successfully.'));
+            } catch (rollbackError) {
+                console.error(chalk.red('Rollback also failed: ' + rollbackError.message));
+            }
             process.exit(1);
         }
     }
@@ -331,9 +362,27 @@ async function main() {
     }
 }
 
-main().catch(err => {
-    console.error(chalk.red('\n[!] UNEXPECTED ERROR: ' + err.message));
-    if (fs.existsSync(BACKUP_PATH)) fs.copyFileSync(BACKUP_PATH, ASAR_PATH);
-    console.log(chalk.yellow('\nClaude app has been restored to safety.'));
-    process.exit(1);
-});
+if (require.main === module) {
+    main().catch(err => {
+        console.error(chalk.red('\n[!] UNEXPECTED ERROR: ' + err.message));
+        try {
+            if (fs.existsSync(BACKUP_PATH)) {
+                fs.copyFileSync(BACKUP_PATH, ASAR_PATH);
+                if (isMac && INFO_PLIST_PATH) {
+                    restoreMacAppState(ASAR_PATH, INFO_PLIST_PATH, CLAUDE_APP_PATH);
+                }
+            }
+            console.log(chalk.yellow('\nClaude app has been restored to safety.'));
+        } catch (rollbackError) {
+            console.error(chalk.red('Emergency rollback failed: ' + rollbackError.message));
+        }
+        process.exit(1);
+    });
+}
+
+module.exports = {
+    CSS_INJECT_FONT_ONLY,
+    CSS_INJECT_FULL,
+    RTL_TEXT_SELECTOR,
+    updateMacAsarIntegrity
+};
