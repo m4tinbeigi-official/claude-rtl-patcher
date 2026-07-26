@@ -4,7 +4,14 @@ const crypto = require('crypto');
 const fs = require('fs');
 const { resolveAppPaths, isWindowsAppsPath } = require('../lib/platform');
 const { SAFE_ENTITLEMENTS, getAsarHeaderHash, reSignMacApp } = require('../lib/macos');
-const { CSS_INJECT_FONT_ONLY, CSS_INJECT_FULL, FONT_TARGET_SELECTOR } = require('../index');
+const {
+    CSS_INJECT_FONT_ONLY,
+    CSS_INJECT_FULL,
+    FONT_TARGET_SELECTOR,
+    RTL_TEXT_SELECTOR,
+    upsertCssPatch,
+    upsertJavaScriptPatch
+} = require('../index');
 
 test('resolves a custom macOS app bundle', () => {
     const paths = resolveAppPaths({
@@ -87,4 +94,42 @@ test('applies Vazirmatn across the UI while excluding icons and code blocks', ()
         assert.match(css, /:where\(body, body \*\)/);
         assert.match(css, /font-family: ui-monospace/);
     }
+});
+
+test('applies plaintext bidi without requiring a pre-existing rtl direction', () => {
+    assert.match(RTL_TEXT_SELECTOR, /:where\(p, div, li,/);
+    assert.doesNotMatch(RTL_TEXT_SELECTOR, /span|label/);
+    assert.equal(CSS_INJECT_FULL.includes(`${RTL_TEXT_SELECTOR}:dir(rtl)`), false);
+    assert.match(CSS_INJECT_FULL, /unicode-bidi: plaintext !important/);
+    assert.equal(CSS_INJECT_FONT_ONLY.includes('unicode-bidi: plaintext'), false);
+});
+
+test('replaces legacy and versioned CSS patches idempotently', () => {
+    const original = 'body { color: black; }';
+    const legacyMarkers = [
+        '/* RTL and Vazirmatn Font Patch */',
+        '/* Vazirmatn Font Patch (font-only, no RTL/bidi changes) */'
+    ];
+
+    for (const marker of legacyMarkers) {
+        const legacy = `${original}\n${marker}\n* { font-family: Vazirmatn; }`;
+        const upgraded = upsertCssPatch(legacy, CSS_INJECT_FULL);
+
+        assert.match(upgraded, /^body \{ color: black; \}/);
+        assert.equal(upgraded.includes("* { font-family: Vazirmatn; }"), false);
+        assert.equal((upgraded.match(/CLAUDE_RTL_PATCH_START:v2/g) || []).length, 1);
+        assert.equal(upsertCssPatch(upgraded, CSS_INJECT_FULL), upgraded);
+    }
+});
+
+test('replaces legacy and versioned JavaScript patches idempotently', () => {
+    const original = 'const applicationCode = true;';
+    const legacy = `${original}\n// Injected for Persian/Arabic/Hebrew support\noldPatch();`;
+    const payload = `\n// CLAUDE_RTL_PATCH_START:v2\nnewPatch();\n// CLAUDE_RTL_PATCH_END\n`;
+    const upgraded = upsertJavaScriptPatch(legacy, payload);
+
+    assert.match(upgraded, /^const applicationCode = true;/);
+    assert.equal(upgraded.includes('oldPatch();'), false);
+    assert.equal((upgraded.match(/CLAUDE_RTL_PATCH_START:v2/g) || []).length, 1);
+    assert.equal(upsertJavaScriptPatch(upgraded, payload), upgraded);
 });
