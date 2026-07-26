@@ -4,14 +4,13 @@ const fs = require('fs');
 const path = require('path');
 const asar = require('@electron/asar');
 const plist = require('plist');
-const crypto = require('crypto');
 const chalk = require('chalk');
 const ora = require('ora');
 const figlet = require('figlet');
 const inquirer = require('inquirer');
 const fontCss = require('./font.js');
 const { resolveAppPaths, isWindowsAppsPath } = require('./lib/platform');
-const { reSignMacApp } = require('./lib/macos');
+const { getAsarHeaderHash, reSignMacApp } = require('./lib/macos');
 
 const isMac = process.platform === 'darwin';
 const isWin = process.platform === 'win32';
@@ -78,30 +77,141 @@ const {
 } = resolvedPaths;
 const TEMP_DIR = path.join(require('os').tmpdir(), 'claude-rtl-patcher-temp');
 
+const PATCH_VERSION = 2;
+const CSS_PATCH_START_PREFIX = '/* CLAUDE_RTL_PATCH_START:v';
+const CSS_PATCH_START = `${CSS_PATCH_START_PREFIX}${PATCH_VERSION} */`;
+const CSS_PATCH_END = '/* CLAUDE_RTL_PATCH_END */';
+const JS_PATCH_START_PREFIX = '// CLAUDE_RTL_PATCH_START:v';
+const JS_PATCH_START = `${JS_PATCH_START_PREFIX}${PATCH_VERSION}`;
+const JS_PATCH_END = '// CLAUDE_RTL_PATCH_END';
+const LEGACY_CSS_MARKERS = [
+    '/* RTL and Vazirmatn Font Patch */',
+    '/* Vazirmatn Font Patch (font-only, no RTL/bidi changes) */'
+];
+const LEGACY_JS_MARKERS = ['// Injected for Persian/Arabic/Hebrew support'];
+
+// Apply Vazirmatn throughout the UI, including text inside generic div/span
+// wrappers and controls. Only known icon roots (and their descendants) plus
+// code-like content are excluded, so their purpose-built fonts stay intact.
+const NON_TEXT_EXCLUSIONS = [
+    ':not(:where(',
+    'svg, svg *,',
+    '[data-icon], [data-icon] *,',
+    '[class*="icon" i], [class*="icon" i] *,',
+    '[class*="lucide" i], [class*="lucide" i] *,',
+    '[class*="codicon" i], [class*="codicon" i] *,',
+    '[class*="material-symbol" i], [class*="material-symbol" i] *,',
+    '[role="img"], [role="img"] *,',
+    '[aria-hidden="true"], [aria-hidden="true"] *,',
+    'i:empty,',
+    'pre, pre *, code, code *, kbd, kbd *, samp, samp *',
+    '))'
+].join('');
+const FONT_TARGET_SELECTOR = `:where(body, body *)${NON_TEXT_EXCLUSIONS}`;
+
+// Full RTL mode is used specifically for Claude builds that do not provide
+// dir="auto" themselves. unicode-bidi: plaintext determines each paragraph's
+// base direction from its first strong character, so Persian aligns right and
+// Latin aligns left even when the DOM has no dir attribute.
+const RTL_TEXT_SELECTOR = [
+    ':where(p, div, li, blockquote, h1, h2, h3, h4, h5, h6,',
+    ' td, th, figcaption, textarea, input, .ProseMirror,',
+    ' [contenteditable], [dir="rtl"], [dir="auto"])',
+    NON_TEXT_EXCLUSIONS
+].join('');
+
+const CODE_STYLE = `
+pre, code, kbd, samp, pre *, code *, kbd *, samp * {
+    font-family: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, monospace !important;
+}`;
+
 const CSS_INJECT_FULL = `
-/* RTL and Vazirmatn Font Patch */
+${CSS_PATCH_START}
+/* Claude RTL and Vazirmatn patch v${PATCH_VERSION} */
 ${fontCss}
-* { font-family: 'Vazirmatn', ui-sans-serif, system-ui, sans-serif !important; }
-p, div, span, h1, h2, h3, h4, h5, h6, textarea, input, .ProseMirror, [contenteditable] { 
+${FONT_TARGET_SELECTOR} {
+    font-family: 'Vazirmatn', ui-sans-serif, system-ui, sans-serif !important;
+}
+${RTL_TEXT_SELECTOR} {
     unicode-bidi: plaintext !important; 
     text-align: start !important; 
 }
+${CODE_STYLE}
+pre, code, kbd, samp, pre *, code *, kbd *, samp * {
+    direction: ltr !important;
+    text-align: left !important;
+    unicode-bidi: isolate;
+}
+${CSS_PATCH_END}
 `;
 
 // Font-only variant: just swaps the typeface, no direction/bidi changes.
 // Useful on newer Claude builds that already ship native RTL support and only
 // need the Vazirmatn font applied on top of it.
 const CSS_INJECT_FONT_ONLY = `
-/* Vazirmatn Font Patch (font-only, no RTL/bidi changes) */
+${CSS_PATCH_START}
+/* Claude Vazirmatn font-only patch v${PATCH_VERSION} */
 ${fontCss}
-* { font-family: 'Vazirmatn', ui-sans-serif, system-ui, sans-serif !important; }
+${FONT_TARGET_SELECTOR} {
+    font-family: 'Vazirmatn', ui-sans-serif, system-ui, sans-serif !important;
+}
+${CODE_STYLE}
+${CSS_PATCH_END}
 `;
+
+function removeVersionedPatch(content, startPrefix, endMarker) {
+    let result = content;
+    let start = result.indexOf(startPrefix);
+
+    while (start !== -1) {
+        const end = result.indexOf(endMarker, start);
+        if (end === -1) {
+            result = result.slice(0, start);
+            break;
+        }
+        result = result.slice(0, start) + result.slice(end + endMarker.length);
+        start = result.indexOf(startPrefix);
+    }
+
+    return result;
+}
+
+function removeLegacyAppendedPatch(content, markers) {
+    const offsets = markers
+        .map(marker => content.indexOf(marker))
+        .filter(offset => offset !== -1);
+    return offsets.length === 0 ? content : content.slice(0, Math.min(...offsets));
+}
+
+function upsertInjectedPatch(content, payload, { startPrefix, endMarker, legacyMarkers }) {
+    let base = removeVersionedPatch(content, startPrefix, endMarker);
+    base = removeLegacyAppendedPatch(base, legacyMarkers).trimEnd();
+    const separator = base.length === 0 ? '' : '\n\n';
+    return `${base}${separator}${payload.trim()}\n`;
+}
+
+function upsertCssPatch(content, payload) {
+    return upsertInjectedPatch(content, payload, {
+        startPrefix: CSS_PATCH_START_PREFIX,
+        endMarker: CSS_PATCH_END,
+        legacyMarkers: LEGACY_CSS_MARKERS
+    });
+}
+
+function upsertJavaScriptPatch(content, payload) {
+    return upsertInjectedPatch(content, payload, {
+        startPrefix: JS_PATCH_START_PREFIX,
+        endMarker: JS_PATCH_END,
+        legacyMarkers: LEGACY_JS_MARKERS
+    });
+}
 
 function updateMacAsarIntegrity(asarPath, infoPlistPath) {
     if (!isMac || !infoPlistPath || !fs.existsSync(infoPlistPath)) return;
 
-    const fileBuffer = fs.readFileSync(asarPath);
-    const newHash = crypto.createHash('sha256').update(fileBuffer).digest('hex');
+    // Electron verifies the SHA-256 of the serialized ASAR header, not the
+    // entire archive. Hashing the whole file makes the app abort at startup.
+    const newHash = getAsarHeaderHash(asarPath);
     const plistData = fs.readFileSync(infoPlistPath, 'utf8');
     const parsed = plist.parse(plistData);
     if (parsed?.ElectronAsarIntegrity?.['Resources/app.asar']) {
@@ -162,11 +272,13 @@ async function patchClaude(fontOnlyOverride) {
     }
     const cssPayload = fontOnly ? CSS_INJECT_FONT_ONLY : CSS_INJECT_FULL;
     const jsPayload = `
-// Injected for Persian/Arabic/Hebrew support
+${JS_PATCH_START}
+// Persian/Arabic/Hebrew support
 try { 
   require('electron/renderer').webFrame.insertCSS(\`${cssPayload.replace(/\n/g, ' ')}\`); 
   console.log("%c✨ ${fontOnly ? 'Vazirmatn font applied' : 'RTL applied'} by Rick Sanchez and Vazirmatn font used in memory of Saber Rastikerdar ✨", "color: #00e5ff; font-size: 14px; font-weight: bold; background: #222; padding: 5px; border-radius: 5px;");
 } catch(e) {}
+${JS_PATCH_END}
 `;
     console.log('');
     if (autoNote) console.log(chalk.blue(`[i] ${autoNote}`));
@@ -226,11 +338,13 @@ try {
                     injectIntoFiles(fullPath);
                 } else if (fullPath.endsWith('.css')) {
                     const content = fs.readFileSync(fullPath, 'utf8');
-                    if (!content.includes('Vazirmatn')) fs.appendFileSync(fullPath, cssPayload);
+                    const updated = upsertCssPatch(content, cssPayload);
+                    if (updated !== content) fs.writeFileSync(fullPath, updated);
                 } else if (fullPath.endsWith('.js')) {
                     if (fullPath.includes('mainView') || fullPath.includes('mainWindow') || fullPath.includes('buddy') || fullPath.includes('quickWindow') || fullPath.includes('aboutWindow') || fullPath.includes('findInPage')) {
                         const content = fs.readFileSync(fullPath, 'utf8');
-                        if (!content.includes('Saber Rastikerdar')) fs.appendFileSync(fullPath, jsPayload);
+                        const updated = upsertJavaScriptPatch(content, jsPayload);
+                        if (updated !== content) fs.writeFileSync(fullPath, updated);
                     }
                 }
             }
@@ -269,8 +383,16 @@ try {
             spinner.succeed(chalk.green('macOS Security passed!'));
         } catch(e) {
             spinner.fail(chalk.red('Security bypass failed. Restoring backup...'));
-            fs.copyFileSync(BACKUP_PATH, ASAR_PATH);
-            if (originalInfoPlist) fs.writeFileSync(INFO_PLIST_PATH, originalInfoPlist);
+            try {
+                fs.copyFileSync(BACKUP_PATH, ASAR_PATH);
+                if (originalInfoPlist) fs.writeFileSync(INFO_PLIST_PATH, originalInfoPlist);
+                // A failed or partial codesign can leave the bundle unusable
+                // even after its files are restored. Re-sign the rollback too.
+                restoreMacAppState(ASAR_PATH, INFO_PLIST_PATH, CLAUDE_APP_PATH);
+                console.error(chalk.green('Original app restored and re-signed successfully.'));
+            } catch (rollbackError) {
+                console.error(chalk.red('Rollback also failed: ' + rollbackError.message));
+            }
             process.exit(1);
         }
     }
@@ -331,9 +453,30 @@ async function main() {
     }
 }
 
-main().catch(err => {
-    console.error(chalk.red('\n[!] UNEXPECTED ERROR: ' + err.message));
-    if (fs.existsSync(BACKUP_PATH)) fs.copyFileSync(BACKUP_PATH, ASAR_PATH);
-    console.log(chalk.yellow('\nClaude app has been restored to safety.'));
-    process.exit(1);
-});
+if (require.main === module) {
+    main().catch(err => {
+        console.error(chalk.red('\n[!] UNEXPECTED ERROR: ' + err.message));
+        try {
+            if (fs.existsSync(BACKUP_PATH)) {
+                fs.copyFileSync(BACKUP_PATH, ASAR_PATH);
+                if (isMac && INFO_PLIST_PATH) {
+                    restoreMacAppState(ASAR_PATH, INFO_PLIST_PATH, CLAUDE_APP_PATH);
+                }
+            }
+            console.log(chalk.yellow('\nClaude app has been restored to safety.'));
+        } catch (rollbackError) {
+            console.error(chalk.red('Emergency rollback failed: ' + rollbackError.message));
+        }
+        process.exit(1);
+    });
+}
+
+module.exports = {
+    CSS_INJECT_FONT_ONLY,
+    CSS_INJECT_FULL,
+    FONT_TARGET_SELECTOR,
+    RTL_TEXT_SELECTOR,
+    upsertCssPatch,
+    upsertJavaScriptPatch,
+    updateMacAsarIntegrity
+};
