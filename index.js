@@ -249,12 +249,16 @@ function collectUnpackedBasenames(headerNode, out = new Set()) {
 }
 
 // Real filenames can legally contain a comma, which would silently split a
-// '{a,b,c}' brace-list into the wrong literal alternatives. '|' can't appear
-// in a Windows filename at all and is vanishingly rare elsewhere, so an
-// extglob alternation '@(a|b|c)' is a safe join separator; escape whatever
-// minimatch/extglob would otherwise treat as a metacharacter within each name.
+// '{a,b,c}' brace-list into the wrong literal alternatives, so filenames are
+// joined with an extglob alternation '@(a|b|c)' instead. A literal '|' in a
+// name can't appear on Windows at all and is vanishingly rare elsewhere, but
+// backslash-escaping it does NOT work here (minimatch's alternation split
+// isn't backslash-aware for '|' the way it is for other metacharacters) -
+// wrapping it in its own one-character bracket-class ('[|]') does, since a
+// character class is parsed as one atomic unit rather than an alternation
+// boundary. Every other metacharacter is still backslash-escaped.
 function escapeGlobLiteral(name) {
-    return name.replace(/[\\{}()[\]*?!+@|]/g, '\\$&');
+    return name.replace(/[\\{}()[\]*?!+@]/g, '\\$&').replace(/\|/g, '[|]');
 }
 
 function buildUnpackPattern(asarPath, asarApi = asar) {
@@ -262,11 +266,7 @@ function buildUnpackPattern(asarPath, asarApi = asar) {
     try {
         const { header } = asarApi.getRawHeader(asarPath);
         for (const name of collectUnpackedBasenames(header)) {
-            // A literal pipe can't be escaped inside this syntax; skip it
-            // rather than emit a pattern that silently matches the wrong
-            // thing (this can never happen on Windows, where '|' is an
-            // illegal filename character to begin with).
-            if (!name.includes('|')) dynamicNames.add(escapeGlobLiteral(name));
+            dynamicNames.add(escapeGlobLiteral(name));
         }
     } catch (e) {
         // Fall back to the static extension list alone.

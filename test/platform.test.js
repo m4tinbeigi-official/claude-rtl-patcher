@@ -221,7 +221,7 @@ test('unpack pattern matches literal filenames containing glob metacharacters', 
     // A '{a,b,c}' brace-list (the original join syntax) silently splits on a
     // comma inside a real filename instead of treating it as one literal
     // alternative - verify the actual pattern minimatch sees behaves right.
-    const trickyNames = ['foo,bar.dll', 'weird(name)+file@[1].dll'];
+    const trickyNames = ['foo,bar.dll', 'weird(name)+file@[1].dll', 'a|pipe(b).node'];
     const header = {
         files: {
             native: {
