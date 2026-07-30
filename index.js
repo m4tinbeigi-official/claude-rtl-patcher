@@ -232,23 +232,34 @@ async function restoreClaude() {
         spinner.fail(chalk.red('No backup found! Claude is already in its original state.'));
         process.exit(1);
     }
-    const originalInfoPlist = isMac && INFO_PLIST_PATH && fs.existsSync(INFO_PLIST_PATH)
-        ? fs.readFileSync(INFO_PLIST_PATH)
-        : null;
     try {
         fs.copyFileSync(BACKUP_PATH, ASAR_PATH);
-        if (isMac && INFO_PLIST_PATH) {
-            // The backup is the source of truth after a restore; update the
-            // Electron integrity entry and make the bundle launchable again.
-            restoreMacAppState(ASAR_PATH, INFO_PLIST_PATH, CLAUDE_APP_PATH);
-        }
-        spinner.succeed(chalk.green('Original Claude restored successfully!'));
-        console.log(chalk.gray('Restart Claude to see the changes.'));
-    } catch(e) {
-        if (originalInfoPlist) fs.writeFileSync(INFO_PLIST_PATH, originalInfoPlist);
+    } catch (e) {
         spinner.fail(chalk.red('Failed to restore backup: ' + e.message));
         process.exit(1);
     }
+    if (isMac && INFO_PLIST_PATH) {
+        try {
+            // The backup is the source of truth after a restore; update the
+            // Electron integrity entry and make the bundle launchable again.
+            restoreMacAppState(ASAR_PATH, INFO_PLIST_PATH, CLAUDE_APP_PATH);
+        } catch (e) {
+            // app.asar is already the original file at this point. Do NOT
+            // fall back to a pre-restore Info.plist snapshot here — that
+            // snapshot's ElectronAsarIntegrity hash matches the *patched*
+            // asar we just replaced, so writing it back would pair the
+            // restored (original) asar with the wrong hash and the app
+            // would fail Electron's integrity check on launch. Re-sync the
+            // hash to whatever's actually on disk instead.
+            try { updateMacAsarIntegrity(ASAR_PATH, INFO_PLIST_PATH); } catch (_) {}
+            spinner.fail(chalk.red('Restore completed, but macOS re-signing failed: ' + e.message));
+            console.log(chalk.yellow('app.asar was restored, but you may need to re-sign manually:'));
+            console.log(chalk.yellow(`  xattr -cr "${CLAUDE_APP_PATH}" && codesign --force --deep --sign - "${CLAUDE_APP_PATH}"`));
+            process.exit(1);
+        }
+    }
+    spinner.succeed(chalk.green('Original Claude restored successfully!'));
+    console.log(chalk.gray('Restart Claude to see the changes.'));
 }
 
 async function patchClaude(fontOnlyOverride) {
@@ -271,11 +282,14 @@ async function patchClaude(fontOnlyOverride) {
         }
     }
     const cssPayload = fontOnly ? CSS_INJECT_FONT_ONLY : CSS_INJECT_FULL;
+    // JSON.stringify (not a raw template literal) so a stray backtick or
+    // ${...} sequence anywhere in cssPayload can never break out of this
+    // generated source and get interpreted as code.
     const jsPayload = `
 ${JS_PATCH_START}
 // Persian/Arabic/Hebrew support
-try { 
-  require('electron/renderer').webFrame.insertCSS(\`${cssPayload.replace(/\n/g, ' ')}\`); 
+try {
+  require('electron/renderer').webFrame.insertCSS(${JSON.stringify(cssPayload)});
   console.log("%c✨ ${fontOnly ? 'Vazirmatn font applied' : 'RTL applied'} by Rick Sanchez and Vazirmatn font used in memory of Saber Rastikerdar ✨", "color: #00e5ff; font-size: 14px; font-weight: bold; background: #222; padding: 5px; border-radius: 5px;");
 } catch(e) {}
 ${JS_PATCH_END}
