@@ -29,7 +29,7 @@ You do not need to download or install anything manually. Just open your system'
 npx claude-rtl-patcher
 ```
 
-*(The script features a beautiful interactive CLI that will automatically detect your OS and Claude version, create a backup, inject the right CSS for your case, and bypass security constraints within seconds!)*
+*(The script features a beautiful interactive CLI that will automatically detect your OS and Claude version, create a backup, inject the right CSS for your case, and - on macOS - re-sign and re-verify the app so it still launches, all within seconds.)*
 
 Once finished, fully close Claude (`Cmd + Q` or `Ctrl + Q`) and reopen it.
 
@@ -110,7 +110,7 @@ Copy and paste this prompt:
 - **[@electron/asar](https://github.com/electron/asar):** Safe extraction and repacking of Electron sources without breaking Native Modules.
 - **[Inquirer](https://www.npmjs.com/package/inquirer):** Interactive CLI menus.
 - **[Chalk](https://www.npmjs.com/package/chalk) & [Ora](https://www.npmjs.com/package/ora) & [Figlet](https://www.npmjs.com/package/figlet):** Beautiful colored UI and spinners.
-- **[Crypto]:** Smart SHA256 calculation to spoof Apple's ASAR Integrity Check (`Gatekeeper Bypass`).
+- **[Crypto]:** Recomputes Electron's own ASAR integrity hash after patching (a check built into Electron itself, separate from macOS Gatekeeper) and ad-hoc re-signs the bundle on macOS so Gatekeeper accepts the modified app.
 
 ---
 

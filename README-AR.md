@@ -27,7 +27,7 @@
 npx claude-rtl-patcher
 \`\`\`
 
-*(تحتوي الأداة على واجهة تفاعلية جميلة ستقوم تلقائياً باكتشاف نظام التشغيل الخاص بك، وإنشاء نسخة احتياطية، وحقن أكواد CSS، وتجاوز القيود الأمنية في ثوانٍ معدودة!)*
+*(تحتوي الأداة على واجهة تفاعلية جميلة ستقوم تلقائياً باكتشاف نظام التشغيل الخاص بك، وإنشاء نسخة احتياطية، وحقن أكواد CSS، وعلى macOS إعادة توقيع التطبيق والتحقق منه ليبقى قابلاً للتشغيل، كل ذلك في ثوانٍ معدودة.)*
 
 بمجرد الانتهاء، أغلق تطبيق Claude بالكامل (`Cmd + Q` أو `Ctrl + Q`) ثم افتحه مرة أخرى.
 
@@ -68,7 +68,7 @@ npx claude-rtl-patcher --restore
 - **[@electron/asar](https://github.com/electron/asar):** استخراج وإعادة حزم مصادر Electron بأمان دون كسر الـ Native Modules.
 - **[Inquirer](https://www.npmjs.com/package/inquirer):** قوائم الأوامر التفاعلية.
 - **[Chalk](https://www.npmjs.com/package/chalk) & [Ora](https://www.npmjs.com/package/ora) & [Figlet](https://www.npmjs.com/package/figlet):** واجهة مستخدم ملونة وجميلة مع مؤشرات التحميل.
-- **[Crypto]:** حساب SHA256 ذكي لتجاوز فحص النزاهة الخاص بـ Apple ASAR (`Gatekeeper Bypass`).
+- **[Crypto]:** إعادة حساب هش سلامة ASAR الخاص بـ Electron نفسه بعد الترقيع (فحص داخلي في Electron، منفصل عن Gatekeeper الخاص بـ macOS)، وإعادة توقيع الحزمة على macOS ليقبلها Gatekeeper.
 
 ---
 

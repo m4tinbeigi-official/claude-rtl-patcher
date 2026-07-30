@@ -27,7 +27,7 @@
 npx claude-rtl-patcher
 \`\`\`
 
-*(הסקריפט כולל ממשק שורת פקודה אינטראקטיבי (CLI) שיזהה אוטומטית את מערכת ההפעלה שלכם, ייצור גיבוי, יזריק את ה-CSS ויעקוף את אילוצי האבטחה תוך שניות!)*
+*(הסקריפט כולל ממשק שורת פקודה אינטראקטיבי (CLI) שיזהה אוטומטית את מערכת ההפעלה שלכם, ייצור גיבוי, יזריק את ה-CSS, ו-ב-macOS יחתום מחדש על האפליקציה ויוודא שהיא עדיין נפתחת - הכל תוך שניות.)*
 
 בסיום התהליך, סגרו לחלוטין את Claude (באמצעות `Cmd + Q` או `Ctrl + Q`) ופתחו אותו מחדש.
 
@@ -68,7 +68,7 @@ npx claude-rtl-patcher --restore
 - **[@electron/asar](https://github.com/electron/asar):** חילוץ ואריזה מחדש בטוחים של מקורות Electron ללא שבירת רכיבי Native Modules.
 - **[Inquirer](https://www.npmjs.com/package/inquirer):** תפריטי CLI אינטראקטיביים.
 - **[Chalk](https://www.npmjs.com/package/chalk) & [Ora](https://www.npmjs.com/package/ora) & [Figlet](https://www.npmjs.com/package/figlet):** ממשק משתמש צבעוני ויפהפה עם אינדיקטורים נעים (Spinners).
-- **[Crypto]:** חישוב SHA256 חכם לזיוף מנגנון ה-Integrity Check של ASAR מבית Apple (מעקף `Gatekeeper`).
+- **[Crypto]:** חישוב מחדש של גיבוב ה-integrity הפנימי של ASAR ב-Electron לאחר הפאץ' (בדיקה פנימית של Electron עצמו, נפרדת מ-Gatekeeper של macOS), וחתימה מחדש של החבילה ב-macOS כדי ש-Gatekeeper יקבל את האפליקציה המתוקנת.
 
 ---
 

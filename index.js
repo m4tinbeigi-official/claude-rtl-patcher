@@ -77,6 +77,16 @@ const {
 } = resolvedPaths;
 const TEMP_DIR = path.join(require('os').tmpdir(), 'claude-rtl-patcher-temp');
 
+// Guards the emergency rollback in the top-level error handler below: it must
+// only fire once app.asar has actually been touched *this run*. A leftover
+// backup from a previous run always exists once someone has patched before,
+// so without this flag any unrelated error (an interactive prompt cancelled,
+// a font-render glitch, anything thrown before we ever wrote to disk) would
+// make the handler copy over a possibly-stale backup and, on macOS,
+// re-sign the user's still-original, still-validly-signed app with an
+// anonymous ad-hoc identity for no reason.
+let asarWasModified = false;
+
 const PATCH_VERSION = 2;
 const CSS_PATCH_START_PREFIX = '/* CLAUDE_RTL_PATCH_START:v';
 const CSS_PATCH_START = `${CSS_PATCH_START_PREFIX}${PATCH_VERSION} */`;
@@ -102,7 +112,6 @@ const NON_TEXT_EXCLUSIONS = [
     '[class*="codicon" i], [class*="codicon" i] *,',
     '[class*="material-symbol" i], [class*="material-symbol" i] *,',
     '[role="img"], [role="img"] *,',
-    '[aria-hidden="true"], [aria-hidden="true"] *,',
     'i:empty,',
     'pre, pre *, code, code *, kbd, kbd *, samp, samp *',
     '))'
@@ -176,11 +185,22 @@ function removeVersionedPatch(content, startPrefix, endMarker) {
     return result;
 }
 
+// Legacy (pre-v2) patches were always appended as a single block at the true
+// end of the file, so truncating from the marker onward is only safe when
+// that's actually where it is. If the marker string shows up somewhere else
+// (a user manually pasted the old fallback-prompt output mid-file, another
+// tool reused the same comment text) the tail being discarded would be far
+// larger than any real injected payload ever was - bail instead of eating it.
+const MAX_LEGACY_PATCH_SIZE = 100_000;
+
 function removeLegacyAppendedPatch(content, markers) {
     const offsets = markers
         .map(marker => content.indexOf(marker))
         .filter(offset => offset !== -1);
-    return offsets.length === 0 ? content : content.slice(0, Math.min(...offsets));
+    if (offsets.length === 0) return content;
+    const cut = Math.min(...offsets);
+    if (content.length - cut > MAX_LEGACY_PATCH_SIZE) return content;
+    return content.slice(0, cut);
 }
 
 function upsertInjectedPatch(content, payload, { startPrefix, endMarker, legacyMarkers }) {
@@ -204,6 +224,39 @@ function upsertJavaScriptPatch(content, payload) {
         endMarker: JS_PATCH_END,
         legacyMarkers: LEGACY_JS_MARKERS
     });
+}
+
+// A fixed glob like '{*.node,*.dylib,spawn-helper}' only covers native
+// modules shaped exactly like the ones on the platform it was written for.
+// asar.extractAll() writes plain files to disk and does NOT record which of
+// them were originally unpacked (a repacked .dll looks identical to a packed
+// one once it's sitting in a plain directory) - by the time we're choosing
+// what to unpack, that information is only available from the *original*
+// archive's own header. Read it directly instead of guessing.
+const STATIC_UNPACK_NAMES = ['*.node', '*.dylib', '*.dll', '*.so', '*.exe', 'spawn-helper'];
+
+function collectUnpackedBasenames(headerNode, out = new Set()) {
+    const files = headerNode && headerNode.files;
+    if (!files) return out;
+    for (const [name, node] of Object.entries(files)) {
+        if (node.files) {
+            collectUnpackedBasenames(node, out);
+        } else if (node.unpacked) {
+            out.add(name);
+        }
+    }
+    return out;
+}
+
+function buildUnpackPattern(asarPath, asarApi = asar) {
+    const names = new Set(STATIC_UNPACK_NAMES);
+    try {
+        const { header } = asarApi.getRawHeader(asarPath);
+        for (const name of collectUnpackedBasenames(header)) names.add(name);
+    } catch (e) {
+        // Fall back to the static extension list alone.
+    }
+    return `{${[...names].join(',')}}`;
 }
 
 function updateMacAsarIntegrity(asarPath, infoPlistPath) {
@@ -233,6 +286,7 @@ async function restoreClaude() {
         process.exit(1);
     }
     try {
+        asarWasModified = true;
         fs.copyFileSync(BACKUP_PATH, ASAR_PATH);
     } catch (e) {
         spinner.fail(chalk.red('Failed to restore backup: ' + e.message));
@@ -373,9 +427,14 @@ ${JS_PATCH_END}
         process.exit(1);
     }
 
+    // Read from BACKUP_PATH (byte-identical to the pre-patch ASAR_PATH) so this
+    // always reflects the untouched original, regardless of call order.
+    const unpackPattern = buildUnpackPattern(BACKUP_PATH);
+
     spinner = ora('Repacking app.asar (this takes a few seconds)...').start();
     try {
-        await asar.createPackageWithOptions(TEMP_DIR, ASAR_PATH, { unpack: '{*.node,*.dylib,spawn-helper}' });
+        asarWasModified = true;
+        await asar.createPackageWithOptions(TEMP_DIR, ASAR_PATH, { unpack: unpackPattern });
         spinner.succeed(chalk.green('App repacked.'));
     } catch(e) {
         spinner.fail(chalk.red('Packing failed. Restoring backup...'));
@@ -384,7 +443,7 @@ ${JS_PATCH_END}
     }
 
     if (isMac && INFO_PLIST_PATH) {
-        spinner = ora('Updating macOS security hashes and bypassing Gatekeeper...').start();
+        spinner = ora('Updating ASAR integrity hash and re-signing for Gatekeeper...').start();
         const originalInfoPlist = fs.existsSync(INFO_PLIST_PATH)
             ? fs.readFileSync(INFO_PLIST_PATH)
             : null;
@@ -394,9 +453,9 @@ ${JS_PATCH_END}
             // Re-sign the entire bundle ad-hoc and verify it. Do not hide failures:
             // an unsigned or partially signed app cannot launch on Apple Silicon.
             reSignMacApp(CLAUDE_APP_PATH);
-            spinner.succeed(chalk.green('macOS Security passed!'));
+            spinner.succeed(chalk.green('ASAR integrity updated and bundle re-signed.'));
         } catch(e) {
-            spinner.fail(chalk.red('Security bypass failed. Restoring backup...'));
+            spinner.fail(chalk.red('Integrity update / re-signing failed. Restoring backup...'));
             try {
                 fs.copyFileSync(BACKUP_PATH, ASAR_PATH);
                 if (originalInfoPlist) fs.writeFileSync(INFO_PLIST_PATH, originalInfoPlist);
@@ -470,16 +529,26 @@ async function main() {
 if (require.main === module) {
     main().catch(err => {
         console.error(chalk.red('\n[!] UNEXPECTED ERROR: ' + err.message));
-        try {
-            if (fs.existsSync(BACKUP_PATH)) {
-                fs.copyFileSync(BACKUP_PATH, ASAR_PATH);
-                if (isMac && INFO_PLIST_PATH) {
-                    restoreMacAppState(ASAR_PATH, INFO_PLIST_PATH, CLAUDE_APP_PATH);
+        // Only roll back if this run actually wrote to app.asar. patchClaude()
+        // and restoreClaude() each already handle - and process.exit() out of -
+        // every failure path that touches the file, so an error reaching here
+        // means asar.js was never written to this run. Without this guard, an
+        // unrelated error (e.g. the interactive prompt being cancelled) with a
+        // leftover backup from a past run would still copy that backup over
+        // app.asar and, on macOS, re-sign the user's untouched, still validly
+        // signed app with an anonymous ad-hoc identity for no reason.
+        if (asarWasModified) {
+            try {
+                if (fs.existsSync(BACKUP_PATH)) {
+                    fs.copyFileSync(BACKUP_PATH, ASAR_PATH);
+                    if (isMac && INFO_PLIST_PATH) {
+                        restoreMacAppState(ASAR_PATH, INFO_PLIST_PATH, CLAUDE_APP_PATH);
+                    }
                 }
+                console.log(chalk.yellow('\nClaude app has been restored to safety.'));
+            } catch (rollbackError) {
+                console.error(chalk.red('Emergency rollback failed: ' + rollbackError.message));
             }
-            console.log(chalk.yellow('\nClaude app has been restored to safety.'));
-        } catch (rollbackError) {
-            console.error(chalk.red('Emergency rollback failed: ' + rollbackError.message));
         }
         process.exit(1);
     });
@@ -492,5 +561,7 @@ module.exports = {
     RTL_TEXT_SELECTOR,
     upsertCssPatch,
     upsertJavaScriptPatch,
-    updateMacAsarIntegrity
+    updateMacAsarIntegrity,
+    collectUnpackedBasenames,
+    buildUnpackPattern
 };
