@@ -4,14 +4,13 @@ const fs = require('fs');
 const path = require('path');
 const asar = require('@electron/asar');
 const plist = require('plist');
-const crypto = require('crypto');
 const chalk = require('chalk');
 const ora = require('ora');
 const figlet = require('figlet');
 const inquirer = require('inquirer');
 const fontCss = require('./font.js');
 const { resolveAppPaths, isWindowsAppsPath } = require('./lib/platform');
-const { reSignMacApp } = require('./lib/macos');
+const { getAsarHeaderHash, reSignMacApp } = require('./lib/macos');
 
 const isMac = process.platform === 'darwin';
 const isWin = process.platform === 'win32';
@@ -78,30 +77,209 @@ const {
 } = resolvedPaths;
 const TEMP_DIR = path.join(require('os').tmpdir(), 'claude-rtl-patcher-temp');
 
+// Guards the emergency rollback in the top-level error handler below: it must
+// only fire once app.asar has actually been touched *this run*. A leftover
+// backup from a previous run always exists once someone has patched before,
+// so without this flag any unrelated error (an interactive prompt cancelled,
+// a font-render glitch, anything thrown before we ever wrote to disk) would
+// make the handler copy over a possibly-stale backup and, on macOS,
+// re-sign the user's still-original, still-validly-signed app with an
+// anonymous ad-hoc identity for no reason.
+let asarWasModified = false;
+
+const PATCH_VERSION = 2;
+const CSS_PATCH_START_PREFIX = '/* CLAUDE_RTL_PATCH_START:v';
+const CSS_PATCH_START = `${CSS_PATCH_START_PREFIX}${PATCH_VERSION} */`;
+const CSS_PATCH_END = '/* CLAUDE_RTL_PATCH_END */';
+const JS_PATCH_START_PREFIX = '// CLAUDE_RTL_PATCH_START:v';
+const JS_PATCH_START = `${JS_PATCH_START_PREFIX}${PATCH_VERSION}`;
+const JS_PATCH_END = '// CLAUDE_RTL_PATCH_END';
+const LEGACY_CSS_MARKERS = [
+    '/* RTL and Vazirmatn Font Patch */',
+    '/* Vazirmatn Font Patch (font-only, no RTL/bidi changes) */'
+];
+const LEGACY_JS_MARKERS = ['// Injected for Persian/Arabic/Hebrew support'];
+
+// Apply Vazirmatn throughout the UI, including text inside generic div/span
+// wrappers and controls. Only known icon roots (and their descendants) plus
+// code-like content are excluded, so their purpose-built fonts stay intact.
+const NON_TEXT_EXCLUSIONS = [
+    ':not(:where(',
+    'svg, svg *,',
+    '[data-icon], [data-icon] *,',
+    '[class*="icon" i], [class*="icon" i] *,',
+    '[class*="lucide" i], [class*="lucide" i] *,',
+    '[class*="codicon" i], [class*="codicon" i] *,',
+    '[class*="material-symbol" i], [class*="material-symbol" i] *,',
+    '[role="img"], [role="img"] *,',
+    'i:empty,',
+    'pre, pre *, code, code *, kbd, kbd *, samp, samp *',
+    '))'
+].join('');
+const FONT_TARGET_SELECTOR = `:where(body, body *)${NON_TEXT_EXCLUSIONS}`;
+
+// Full RTL mode is used specifically for Claude builds that do not provide
+// dir="auto" themselves. unicode-bidi: plaintext determines each paragraph's
+// base direction from its first strong character, so Persian aligns right and
+// Latin aligns left even when the DOM has no dir attribute.
+const RTL_TEXT_SELECTOR = [
+    ':where(p, div, li, blockquote, h1, h2, h3, h4, h5, h6,',
+    ' td, th, figcaption, textarea, input, .ProseMirror,',
+    ' [contenteditable], [dir="rtl"], [dir="auto"])',
+    NON_TEXT_EXCLUSIONS
+].join('');
+
+const CODE_STYLE = `
+pre, code, kbd, samp, pre *, code *, kbd *, samp * {
+    font-family: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, monospace !important;
+}`;
+
 const CSS_INJECT_FULL = `
-/* RTL and Vazirmatn Font Patch */
+${CSS_PATCH_START}
+/* Claude RTL and Vazirmatn patch v${PATCH_VERSION} */
 ${fontCss}
-* { font-family: 'Vazirmatn', ui-sans-serif, system-ui, sans-serif !important; }
-p, div, span, h1, h2, h3, h4, h5, h6, textarea, input, .ProseMirror, [contenteditable] { 
+${FONT_TARGET_SELECTOR} {
+    font-family: 'Vazirmatn', ui-sans-serif, system-ui, sans-serif !important;
+}
+${RTL_TEXT_SELECTOR} {
     unicode-bidi: plaintext !important; 
     text-align: start !important; 
 }
+${CODE_STYLE}
+pre, code, kbd, samp, pre *, code *, kbd *, samp * {
+    direction: ltr !important;
+    text-align: left !important;
+    unicode-bidi: isolate;
+}
+${CSS_PATCH_END}
 `;
 
 // Font-only variant: just swaps the typeface, no direction/bidi changes.
 // Useful on newer Claude builds that already ship native RTL support and only
 // need the Vazirmatn font applied on top of it.
 const CSS_INJECT_FONT_ONLY = `
-/* Vazirmatn Font Patch (font-only, no RTL/bidi changes) */
+${CSS_PATCH_START}
+/* Claude Vazirmatn font-only patch v${PATCH_VERSION} */
 ${fontCss}
-* { font-family: 'Vazirmatn', ui-sans-serif, system-ui, sans-serif !important; }
+${FONT_TARGET_SELECTOR} {
+    font-family: 'Vazirmatn', ui-sans-serif, system-ui, sans-serif !important;
+}
+${CODE_STYLE}
+${CSS_PATCH_END}
 `;
+
+function removeVersionedPatch(content, startPrefix, endMarker) {
+    let result = content;
+    let start = result.indexOf(startPrefix);
+
+    while (start !== -1) {
+        const end = result.indexOf(endMarker, start);
+        if (end === -1) {
+            result = result.slice(0, start);
+            break;
+        }
+        result = result.slice(0, start) + result.slice(end + endMarker.length);
+        start = result.indexOf(startPrefix);
+    }
+
+    return result;
+}
+
+// Legacy (pre-v2) patches were always appended as a single block at the true
+// end of the file, so truncating from the marker onward is only safe when
+// that's actually where it is. If the marker string shows up somewhere else
+// (a user manually pasted the old fallback-prompt output mid-file, another
+// tool reused the same comment text) the tail being discarded would be far
+// larger than any real injected payload ever was - bail instead of eating it.
+const MAX_LEGACY_PATCH_SIZE = 100_000;
+
+function removeLegacyAppendedPatch(content, markers) {
+    const offsets = markers
+        .map(marker => content.indexOf(marker))
+        .filter(offset => offset !== -1);
+    if (offsets.length === 0) return content;
+    const cut = Math.min(...offsets);
+    if (content.length - cut > MAX_LEGACY_PATCH_SIZE) return content;
+    return content.slice(0, cut);
+}
+
+function upsertInjectedPatch(content, payload, { startPrefix, endMarker, legacyMarkers }) {
+    let base = removeVersionedPatch(content, startPrefix, endMarker);
+    base = removeLegacyAppendedPatch(base, legacyMarkers).trimEnd();
+    const separator = base.length === 0 ? '' : '\n\n';
+    return `${base}${separator}${payload.trim()}\n`;
+}
+
+function upsertCssPatch(content, payload) {
+    return upsertInjectedPatch(content, payload, {
+        startPrefix: CSS_PATCH_START_PREFIX,
+        endMarker: CSS_PATCH_END,
+        legacyMarkers: LEGACY_CSS_MARKERS
+    });
+}
+
+function upsertJavaScriptPatch(content, payload) {
+    return upsertInjectedPatch(content, payload, {
+        startPrefix: JS_PATCH_START_PREFIX,
+        endMarker: JS_PATCH_END,
+        legacyMarkers: LEGACY_JS_MARKERS
+    });
+}
+
+// A fixed glob like '{*.node,*.dylib,spawn-helper}' only covers native
+// modules shaped exactly like the ones on the platform it was written for.
+// asar.extractAll() writes plain files to disk and does NOT record which of
+// them were originally unpacked (a repacked .dll looks identical to a packed
+// one once it's sitting in a plain directory) - by the time we're choosing
+// what to unpack, that information is only available from the *original*
+// archive's own header. Read it directly instead of guessing.
+const STATIC_UNPACK_NAMES = ['*.node', '*.dylib', '*.dll', '*.so', '*.exe', 'spawn-helper'];
+
+function collectUnpackedBasenames(headerNode, out = new Set()) {
+    const files = headerNode && headerNode.files;
+    if (!files) return out;
+    for (const [name, node] of Object.entries(files)) {
+        if (node.files) {
+            collectUnpackedBasenames(node, out);
+        } else if (node.unpacked) {
+            out.add(name);
+        }
+    }
+    return out;
+}
+
+// Real filenames can legally contain a comma, which would silently split a
+// '{a,b,c}' brace-list into the wrong literal alternatives, so filenames are
+// joined with an extglob alternation '@(a|b|c)' instead. A literal '|' in a
+// name can't appear on Windows at all and is vanishingly rare elsewhere, but
+// backslash-escaping it does NOT work here (minimatch's alternation split
+// isn't backslash-aware for '|' the way it is for other metacharacters) -
+// wrapping it in its own one-character bracket-class ('[|]') does, since a
+// character class is parsed as one atomic unit rather than an alternation
+// boundary. Every other metacharacter is still backslash-escaped.
+function escapeGlobLiteral(name) {
+    return name.replace(/[\\{}()[\]*?!+@]/g, '\\$&').replace(/\|/g, '[|]');
+}
+
+function buildUnpackPattern(asarPath, asarApi = asar) {
+    const dynamicNames = new Set();
+    try {
+        const { header } = asarApi.getRawHeader(asarPath);
+        for (const name of collectUnpackedBasenames(header)) {
+            dynamicNames.add(escapeGlobLiteral(name));
+        }
+    } catch (e) {
+        // Fall back to the static extension list alone.
+    }
+    return `@(${[...STATIC_UNPACK_NAMES, ...dynamicNames].join('|')})`;
+}
 
 function updateMacAsarIntegrity(asarPath, infoPlistPath) {
     if (!isMac || !infoPlistPath || !fs.existsSync(infoPlistPath)) return;
 
-    const fileBuffer = fs.readFileSync(asarPath);
-    const newHash = crypto.createHash('sha256').update(fileBuffer).digest('hex');
+    // Electron verifies the SHA-256 of the serialized ASAR header, not the
+    // entire archive. Hashing the whole file makes the app abort at startup.
+    const newHash = getAsarHeaderHash(asarPath);
     const plistData = fs.readFileSync(infoPlistPath, 'utf8');
     const parsed = plist.parse(plistData);
     if (parsed?.ElectronAsarIntegrity?.['Resources/app.asar']) {
@@ -122,23 +300,35 @@ async function restoreClaude() {
         spinner.fail(chalk.red('No backup found! Claude is already in its original state.'));
         process.exit(1);
     }
-    const originalInfoPlist = isMac && INFO_PLIST_PATH && fs.existsSync(INFO_PLIST_PATH)
-        ? fs.readFileSync(INFO_PLIST_PATH)
-        : null;
     try {
+        asarWasModified = true;
         fs.copyFileSync(BACKUP_PATH, ASAR_PATH);
-        if (isMac && INFO_PLIST_PATH) {
-            // The backup is the source of truth after a restore; update the
-            // Electron integrity entry and make the bundle launchable again.
-            restoreMacAppState(ASAR_PATH, INFO_PLIST_PATH, CLAUDE_APP_PATH);
-        }
-        spinner.succeed(chalk.green('Original Claude restored successfully!'));
-        console.log(chalk.gray('Restart Claude to see the changes.'));
-    } catch(e) {
-        if (originalInfoPlist) fs.writeFileSync(INFO_PLIST_PATH, originalInfoPlist);
+    } catch (e) {
         spinner.fail(chalk.red('Failed to restore backup: ' + e.message));
         process.exit(1);
     }
+    if (isMac && INFO_PLIST_PATH) {
+        try {
+            // The backup is the source of truth after a restore; update the
+            // Electron integrity entry and make the bundle launchable again.
+            restoreMacAppState(ASAR_PATH, INFO_PLIST_PATH, CLAUDE_APP_PATH);
+        } catch (e) {
+            // app.asar is already the original file at this point. Do NOT
+            // fall back to a pre-restore Info.plist snapshot here — that
+            // snapshot's ElectronAsarIntegrity hash matches the *patched*
+            // asar we just replaced, so writing it back would pair the
+            // restored (original) asar with the wrong hash and the app
+            // would fail Electron's integrity check on launch. Re-sync the
+            // hash to whatever's actually on disk instead.
+            try { updateMacAsarIntegrity(ASAR_PATH, INFO_PLIST_PATH); } catch (_) {}
+            spinner.fail(chalk.red('Restore completed, but macOS re-signing failed: ' + e.message));
+            console.log(chalk.yellow('app.asar was restored, but you may need to re-sign manually:'));
+            console.log(chalk.yellow(`  xattr -cr "${CLAUDE_APP_PATH}" && codesign --force --deep --sign - "${CLAUDE_APP_PATH}"`));
+            process.exit(1);
+        }
+    }
+    spinner.succeed(chalk.green('Original Claude restored successfully!'));
+    console.log(chalk.gray('Restart Claude to see the changes.'));
 }
 
 async function patchClaude(fontOnlyOverride) {
@@ -161,12 +351,17 @@ async function patchClaude(fontOnlyOverride) {
         }
     }
     const cssPayload = fontOnly ? CSS_INJECT_FONT_ONLY : CSS_INJECT_FULL;
+    // JSON.stringify (not a raw template literal) so a stray backtick or
+    // ${...} sequence anywhere in cssPayload can never break out of this
+    // generated source and get interpreted as code.
     const jsPayload = `
-// Injected for Persian/Arabic/Hebrew support
-try { 
-  require('electron/renderer').webFrame.insertCSS(\`${cssPayload.replace(/\n/g, ' ')}\`); 
+${JS_PATCH_START}
+// Persian/Arabic/Hebrew support
+try {
+  require('electron/renderer').webFrame.insertCSS(${JSON.stringify(cssPayload)});
   console.log("%c✨ ${fontOnly ? 'Vazirmatn font applied' : 'RTL applied'} by Rick Sanchez and Vazirmatn font used in memory of Saber Rastikerdar ✨", "color: #00e5ff; font-size: 14px; font-weight: bold; background: #222; padding: 5px; border-radius: 5px;");
 } catch(e) {}
+${JS_PATCH_END}
 `;
     console.log('');
     if (autoNote) console.log(chalk.blue(`[i] ${autoNote}`));
@@ -202,6 +397,11 @@ try {
         console.error(e);
         process.exit(1);
     }
+    // From here on, every remaining step in this function (including the
+    // inline rollback copies in the catch blocks below) touches app.asar -
+    // if one of those copies itself fails partway through, the top-level
+    // handler needs to know a rollback may still be needed.
+    asarWasModified = true;
 
     if (fs.existsSync(TEMP_DIR)) fs.rmSync(TEMP_DIR, { recursive: true, force: true });
 
@@ -226,11 +426,13 @@ try {
                     injectIntoFiles(fullPath);
                 } else if (fullPath.endsWith('.css')) {
                     const content = fs.readFileSync(fullPath, 'utf8');
-                    if (!content.includes('Vazirmatn')) fs.appendFileSync(fullPath, cssPayload);
+                    const updated = upsertCssPatch(content, cssPayload);
+                    if (updated !== content) fs.writeFileSync(fullPath, updated);
                 } else if (fullPath.endsWith('.js')) {
                     if (fullPath.includes('mainView') || fullPath.includes('mainWindow') || fullPath.includes('buddy') || fullPath.includes('quickWindow') || fullPath.includes('aboutWindow') || fullPath.includes('findInPage')) {
                         const content = fs.readFileSync(fullPath, 'utf8');
-                        if (!content.includes('Saber Rastikerdar')) fs.appendFileSync(fullPath, jsPayload);
+                        const updated = upsertJavaScriptPatch(content, jsPayload);
+                        if (updated !== content) fs.writeFileSync(fullPath, updated);
                     }
                 }
             }
@@ -245,9 +447,13 @@ try {
         process.exit(1);
     }
 
+    // Read from BACKUP_PATH (byte-identical to the pre-patch ASAR_PATH) so this
+    // always reflects the untouched original, regardless of call order.
+    const unpackPattern = buildUnpackPattern(BACKUP_PATH);
+
     spinner = ora('Repacking app.asar (this takes a few seconds)...').start();
     try {
-        await asar.createPackageWithOptions(TEMP_DIR, ASAR_PATH, { unpack: '{*.node,*.dylib,spawn-helper}' });
+        await asar.createPackageWithOptions(TEMP_DIR, ASAR_PATH, { unpack: unpackPattern });
         spinner.succeed(chalk.green('App repacked.'));
     } catch(e) {
         spinner.fail(chalk.red('Packing failed. Restoring backup...'));
@@ -256,7 +462,7 @@ try {
     }
 
     if (isMac && INFO_PLIST_PATH) {
-        spinner = ora('Updating macOS security hashes and bypassing Gatekeeper...').start();
+        spinner = ora('Updating ASAR integrity hash and re-signing for Gatekeeper...').start();
         const originalInfoPlist = fs.existsSync(INFO_PLIST_PATH)
             ? fs.readFileSync(INFO_PLIST_PATH)
             : null;
@@ -266,11 +472,19 @@ try {
             // Re-sign the entire bundle ad-hoc and verify it. Do not hide failures:
             // an unsigned or partially signed app cannot launch on Apple Silicon.
             reSignMacApp(CLAUDE_APP_PATH);
-            spinner.succeed(chalk.green('macOS Security passed!'));
+            spinner.succeed(chalk.green('ASAR integrity updated and bundle re-signed.'));
         } catch(e) {
-            spinner.fail(chalk.red('Security bypass failed. Restoring backup...'));
-            fs.copyFileSync(BACKUP_PATH, ASAR_PATH);
-            if (originalInfoPlist) fs.writeFileSync(INFO_PLIST_PATH, originalInfoPlist);
+            spinner.fail(chalk.red('Integrity update / re-signing failed. Restoring backup...'));
+            try {
+                fs.copyFileSync(BACKUP_PATH, ASAR_PATH);
+                if (originalInfoPlist) fs.writeFileSync(INFO_PLIST_PATH, originalInfoPlist);
+                // A failed or partial codesign can leave the bundle unusable
+                // even after its files are restored. Re-sign the rollback too.
+                restoreMacAppState(ASAR_PATH, INFO_PLIST_PATH, CLAUDE_APP_PATH);
+                console.error(chalk.green('Original app restored and re-signed successfully.'));
+            } catch (rollbackError) {
+                console.error(chalk.red('Rollback also failed: ' + rollbackError.message));
+            }
             process.exit(1);
         }
     }
@@ -331,9 +545,42 @@ async function main() {
     }
 }
 
-main().catch(err => {
-    console.error(chalk.red('\n[!] UNEXPECTED ERROR: ' + err.message));
-    if (fs.existsSync(BACKUP_PATH)) fs.copyFileSync(BACKUP_PATH, ASAR_PATH);
-    console.log(chalk.yellow('\nClaude app has been restored to safety.'));
-    process.exit(1);
-});
+if (require.main === module) {
+    main().catch(err => {
+        console.error(chalk.red('\n[!] UNEXPECTED ERROR: ' + err.message));
+        // Only roll back if this run actually wrote to app.asar. patchClaude()
+        // and restoreClaude() each already handle - and process.exit() out of -
+        // every failure path that touches the file, so an error reaching here
+        // means asar.js was never written to this run. Without this guard, an
+        // unrelated error (e.g. the interactive prompt being cancelled) with a
+        // leftover backup from a past run would still copy that backup over
+        // app.asar and, on macOS, re-sign the user's untouched, still validly
+        // signed app with an anonymous ad-hoc identity for no reason.
+        if (asarWasModified) {
+            try {
+                if (fs.existsSync(BACKUP_PATH)) {
+                    fs.copyFileSync(BACKUP_PATH, ASAR_PATH);
+                    if (isMac && INFO_PLIST_PATH) {
+                        restoreMacAppState(ASAR_PATH, INFO_PLIST_PATH, CLAUDE_APP_PATH);
+                    }
+                }
+                console.log(chalk.yellow('\nClaude app has been restored to safety.'));
+            } catch (rollbackError) {
+                console.error(chalk.red('Emergency rollback failed: ' + rollbackError.message));
+            }
+        }
+        process.exit(1);
+    });
+}
+
+module.exports = {
+    CSS_INJECT_FONT_ONLY,
+    CSS_INJECT_FULL,
+    FONT_TARGET_SELECTOR,
+    RTL_TEXT_SELECTOR,
+    upsertCssPatch,
+    upsertJavaScriptPatch,
+    updateMacAsarIntegrity,
+    collectUnpackedBasenames,
+    buildUnpackPattern
+};
