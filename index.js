@@ -88,6 +88,27 @@ p, div, span, h1, h2, h3, h4, h5, h6, textarea, input, .ProseMirror, [contentedi
 }
 `;
 
+// Distinguishes an already-applied "full" patch from a "font-only" one so we
+// can refuse to silently no-op when switching variants without --restore
+// first (injectIntoFiles skips a file the moment it sees "Vazirmatn", so a
+// font-only run after a full patch would otherwise report success while
+// leaving the old RTL/bidi rules in place untouched).
+function findExistingPatchMode(dir) {
+    if (!fs.existsSync(dir)) return null;
+    for (const file of fs.readdirSync(dir)) {
+        const fullPath = path.join(dir, file);
+        if (fs.statSync(fullPath).isDirectory()) {
+            const nested = findExistingPatchMode(fullPath);
+            if (nested) return nested;
+        } else if (fullPath.endsWith('.css')) {
+            const content = fs.readFileSync(fullPath, 'utf8');
+            if (content.includes('unicode-bidi: plaintext')) return 'full';
+            if (content.includes('Vazirmatn')) return 'font-only';
+        }
+    }
+    return null;
+}
+
 // Font-only variant: just swaps the typeface, no direction/bidi changes.
 // Useful on newer Claude builds that already ship native RTL support and only
 // need the Vazirmatn font applied on top of it.
@@ -212,6 +233,16 @@ try {
     } catch(e) {
         spinner.fail(chalk.red('Extraction failed. Restoring backup...'));
         fs.copyFileSync(BACKUP_PATH, ASAR_PATH);
+        process.exit(1);
+    }
+
+    const existingMode = findExistingPatchMode(path.join(TEMP_DIR, '.vite', 'build'))
+        || findExistingPatchMode(path.join(TEMP_DIR, '.vite', 'renderer'));
+    const requestedMode = fontOnly ? 'font-only' : 'full';
+    if (existingMode && existingMode !== requestedMode) {
+        console.error(chalk.red(`[!] Claude is already patched with the "${existingMode}" variant.`));
+        console.log(chalk.yellow(`Run with --restore first, then re-run to switch to "${requestedMode}".`));
+        fs.rmSync(TEMP_DIR, { recursive: true, force: true });
         process.exit(1);
     }
 
