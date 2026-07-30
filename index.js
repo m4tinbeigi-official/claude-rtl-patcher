@@ -248,15 +248,30 @@ function collectUnpackedBasenames(headerNode, out = new Set()) {
     return out;
 }
 
+// Real filenames can legally contain a comma, which would silently split a
+// '{a,b,c}' brace-list into the wrong literal alternatives. '|' can't appear
+// in a Windows filename at all and is vanishingly rare elsewhere, so an
+// extglob alternation '@(a|b|c)' is a safe join separator; escape whatever
+// minimatch/extglob would otherwise treat as a metacharacter within each name.
+function escapeGlobLiteral(name) {
+    return name.replace(/[\\{}()[\]*?!+@|]/g, '\\$&');
+}
+
 function buildUnpackPattern(asarPath, asarApi = asar) {
-    const names = new Set(STATIC_UNPACK_NAMES);
+    const dynamicNames = new Set();
     try {
         const { header } = asarApi.getRawHeader(asarPath);
-        for (const name of collectUnpackedBasenames(header)) names.add(name);
+        for (const name of collectUnpackedBasenames(header)) {
+            // A literal pipe can't be escaped inside this syntax; skip it
+            // rather than emit a pattern that silently matches the wrong
+            // thing (this can never happen on Windows, where '|' is an
+            // illegal filename character to begin with).
+            if (!name.includes('|')) dynamicNames.add(escapeGlobLiteral(name));
+        }
     } catch (e) {
         // Fall back to the static extension list alone.
     }
-    return `{${[...names].join(',')}}`;
+    return `@(${[...STATIC_UNPACK_NAMES, ...dynamicNames].join('|')})`;
 }
 
 function updateMacAsarIntegrity(asarPath, infoPlistPath) {
@@ -382,6 +397,11 @@ ${JS_PATCH_END}
         console.error(e);
         process.exit(1);
     }
+    // From here on, every remaining step in this function (including the
+    // inline rollback copies in the catch blocks below) touches app.asar -
+    // if one of those copies itself fails partway through, the top-level
+    // handler needs to know a rollback may still be needed.
+    asarWasModified = true;
 
     if (fs.existsSync(TEMP_DIR)) fs.rmSync(TEMP_DIR, { recursive: true, force: true });
 
@@ -433,7 +453,6 @@ ${JS_PATCH_END}
 
     spinner = ora('Repacking app.asar (this takes a few seconds)...').start();
     try {
-        asarWasModified = true;
         await asar.createPackageWithOptions(TEMP_DIR, ASAR_PATH, { unpack: unpackPattern });
         spinner.succeed(chalk.green('App repacked.'));
     } catch(e) {

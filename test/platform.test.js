@@ -20,6 +20,7 @@ const {
     collectUnpackedBasenames,
     buildUnpackPattern
 } = require('../index');
+const { minimatch } = require('minimatch');
 
 test('resolves a custom macOS app bundle', () => {
     const paths = resolveAppPaths({
@@ -214,4 +215,26 @@ test('reconstructs the exact original unpack set from the archive header, not ju
     assert.match(pattern, /\*\.dll/);
     assert.match(pattern, /\*\.so/);
     assert.match(pattern, /\*\.exe/);
+});
+
+test('unpack pattern matches literal filenames containing glob metacharacters', () => {
+    // A '{a,b,c}' brace-list (the original join syntax) silently splits on a
+    // comma inside a real filename instead of treating it as one literal
+    // alternative - verify the actual pattern minimatch sees behaves right.
+    const trickyNames = ['foo,bar.dll', 'weird(name)+file@[1].dll'];
+    const header = {
+        files: {
+            native: {
+                files: Object.fromEntries(trickyNames.map(name => [name, { size: 1, unpacked: true }]))
+            }
+        }
+    };
+    const fakeAsar = { getRawHeader: () => ({ header }) };
+    const pattern = buildUnpackPattern('/tmp/app.asar', fakeAsar);
+
+    for (const name of trickyNames) {
+        assert.equal(minimatch(name, pattern, { matchBase: true }), true, `expected ${name} to match ${pattern}`);
+    }
+    assert.equal(minimatch('unrelated.txt', pattern, { matchBase: true }), false);
+    assert.equal(minimatch('addon.node', pattern, { matchBase: true }), true);
 });

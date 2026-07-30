@@ -43,5 +43,8 @@
     "inquirer": "^8.2.7",
     "ora": "^5.4.1",
     "plist": "^3.0.6"
+  },
+  "devDependencies": {
+    "minimatch": "^10.2.6"
   }
 }
