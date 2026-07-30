@@ -32,6 +32,9 @@
   },
   "homepage": "https://github.com/m4tinbeigi-official/claude-rtl-patcher#readme",
   "type": "commonjs",
+  "engines": {
+    "node": ">=22.12.0"
+  },
   "pkg": {
     "scripts": ["index.js", "lib/**/*.js"],
     "assets": ["font.js"]
