@@ -12,6 +12,8 @@ const inquirer = require('inquirer');
 const fontCss = require('./font.js');
 const { resolveAppPaths, isWindowsAppsPath } = require('./lib/platform');
 const { reSignMacApp } = require('./lib/macos');
+const { computeUnpackGlob } = require('./lib/unpack');
+const { disableAsarIntegrityFuse } = require('./lib/fuses');
 
 const isMac = process.platform === 'darwin';
 const isWin = process.platform === 'win32';
@@ -82,9 +84,12 @@ const CSS_INJECT_FULL = `
 /* RTL and Vazirmatn Font Patch */
 ${fontCss}
 * { font-family: 'Vazirmatn', ui-sans-serif, system-ui, sans-serif !important; }
-p, div, span, h1, h2, h3, h4, h5, h6, textarea, input, .ProseMirror, [contenteditable] { 
-    unicode-bidi: plaintext !important; 
-    text-align: start !important; 
+/* Deliberately excludes bare div/span: those wrap icon-only buttons (e.g. the
+   "new chat" icon), and a forced text-align/unicode-bidi on every div/span
+   pushes their SVG content out of its clipped container, making it disappear. */
+p, h1, h2, h3, h4, h5, h6, textarea, input, .ProseMirror, [contenteditable] {
+    unicode-bidi: plaintext !important;
+    text-align: start !important;
 }
 `;
 
@@ -205,6 +210,14 @@ try {
 
     if (fs.existsSync(TEMP_DIR)) fs.rmSync(TEMP_DIR, { recursive: true, force: true });
 
+    // Snapshot which files are already unpacked next to the original asar
+    // BEFORE touching anything, so repacking keeps the same set on disk as
+    // real files instead of collapsing them into a hardcoded extension list
+    // (a hardcoded list is what causes "Malformed Mach-o file" — any native
+    // binary that doesn't match, like a Claude Code helper, silently ends up
+    // packed INTO the archive, and the OS can't exec a byte range of it).
+    const unpackGlob = computeUnpackGlob(ASAR_PATH);
+
     spinner = ora('Extracting app.asar...').start();
     try {
         asar.extractAll(ASAR_PATH, TEMP_DIR);
@@ -247,7 +260,7 @@ try {
 
     spinner = ora('Repacking app.asar (this takes a few seconds)...').start();
     try {
-        await asar.createPackageWithOptions(TEMP_DIR, ASAR_PATH, { unpack: '{*.node,*.dylib,spawn-helper}' });
+        await asar.createPackageWithOptions(TEMP_DIR, ASAR_PATH, { unpack: unpackGlob });
         spinner.succeed(chalk.green('App repacked.'));
     } catch(e) {
         spinner.fail(chalk.red('Packing failed. Restoring backup...'));
@@ -262,7 +275,15 @@ try {
             : null;
         try {
             updateMacAsarIntegrity(ASAR_PATH, INFO_PLIST_PATH);
-            
+
+            // The real ASAR integrity check Electron enforces at launch is a
+            // fuse baked into the Electron Framework binary, not the
+            // ElectronAsarIntegrity key in Info.plist (that's a separate,
+            // legacy mechanism some build tools also happen to write, and
+            // updating it alone does NOT stop the "Integrity check failed"
+            // crash). Disable the real fuse via Electron's own tooling.
+            disableAsarIntegrityFuse(CLAUDE_APP_PATH);
+
             // Re-sign the entire bundle ad-hoc and verify it. Do not hide failures:
             // an unsigned or partially signed app cannot launch on Apple Silicon.
             reSignMacApp(CLAUDE_APP_PATH);

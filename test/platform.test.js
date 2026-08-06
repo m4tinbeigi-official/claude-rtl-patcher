@@ -36,8 +36,9 @@ test('re-signs macOS apps without a shell and verifies the result', () => {
         calls.push({ command, args });
     });
 
-    assert.deepEqual(calls.map(({ command }) => command), ['xattr', 'codesign', 'codesign']);
-    assert.deepEqual(calls[1].args.slice(0, 4), ['--force', '--deep', '--sign', '-']);
-    assert.equal(calls[1].args.at(-1), '/Applications/Claude Test.app');
-    assert.deepEqual(calls[2].args.slice(0, 3), ['--verify', '--deep', '--strict']);
+    assert.deepEqual(calls.map(({ command }) => command), ['xattr', 'codesign', 'codesign', 'codesign']);
+    assert.deepEqual(calls[1].args, ['--remove-signature', '--deep', '/Applications/Claude Test.app']);
+    assert.deepEqual(calls[2].args.slice(0, 4), ['--force', '--deep', '--sign', '-']);
+    assert.equal(calls[2].args.at(-1), '/Applications/Claude Test.app');
+    assert.deepEqual(calls[3].args.slice(0, 3), ['--verify', '--deep', '--strict']);
 });
