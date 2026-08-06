@@ -241,7 +241,24 @@ try {
                     const content = fs.readFileSync(fullPath, 'utf8');
                     if (!content.includes('Vazirmatn')) fs.appendFileSync(fullPath, cssPayload);
                 } else if (fullPath.endsWith('.js')) {
-                    if (fullPath.includes('mainView') || fullPath.includes('mainWindow') || fullPath.includes('buddy') || fullPath.includes('quickWindow') || fullPath.includes('aboutWindow') || fullPath.includes('findInPage')) {
+                    // Exact basenames only. A substring check against the full
+                    // path (e.g. fullPath.includes('buddy')) also matches
+                    // unrelated compiled renderer assets that merely live
+                    // under a "buddy_window" directory (main-XXXX.js,
+                    // BuddyWindow-XXXX.js, ...), double-injecting the CSS
+                    // there while the actual window bootstrap files it's
+                    // asymmetrically written for (main_window, quick_window,
+                    // about_window, find_in_page — underscored, so they never
+                    // matched the camelCase substrings anyway) get skipped.
+                    // Those windows already receive the same styles via the
+                    // unconditional .css injection above, so this JS
+                    // injection only needs to target the specific top-level
+                    // bootstrap scripts under .vite/build/.
+                    const BOOTSTRAP_JS_FILES = new Set([
+                        'mainView.js', 'mainWindow.js', 'buddy.js',
+                        'quickWindow.js', 'aboutWindow.js', 'findInPage.js'
+                    ]);
+                    if (BOOTSTRAP_JS_FILES.has(path.basename(fullPath))) {
                         const content = fs.readFileSync(fullPath, 'utf8');
                         if (!content.includes('Saber Rastikerdar')) fs.appendFileSync(fullPath, jsPayload);
                     }
