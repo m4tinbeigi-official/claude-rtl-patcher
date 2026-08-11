@@ -124,6 +124,9 @@ We welcome pull requests from everyone!
 
 ---
 
+## 🔗 Related Projects
+- **[Antigravity-RTL](https://m4tinbeigi-official.github.io/Antigravity-RTL/)**: The auto-patcher for Right-to-Left (RTL) text and Vazirmatn font in the Antigravity AI-first development application.
+
 ## ⭐ Support the Project
 If this tool made your Claude experience better, please consider **Starring (⭐)** this repository at the top of the page. It helps the project reach more users!
 
