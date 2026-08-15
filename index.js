@@ -13,7 +13,7 @@ const { resolveAppPaths, isWindowsAppsPath } = require('./lib/platform');
 const { reSignMacApp } = require('./lib/macos');
 const { computeUnpackGlob } = require('./lib/unpack');
 const { disableAsarIntegrityFuse } = require('./lib/fuses');
-const { computeAsarHeaderHash } = require('./lib/asar-integrity');
+const { computeAsarHeaderHash, setAsarIntegrityHash } = require('./lib/asar-integrity');
 
 const isMac = process.platform === 'darwin';
 const isWin = process.platform === 'win32';
@@ -102,17 +102,19 @@ ${fontCss}
 * { font-family: 'Vazirmatn', ui-sans-serif, system-ui, sans-serif !important; }
 `;
 
+// Returns true when Info.plist actually carried an ElectronAsarIntegrity entry
+// and it now holds the correct header hash. False means there was nothing to
+// satisfy Electron with, and the caller must fall back to the fuse.
 function updateMacAsarIntegrity(asarPath, infoPlistPath) {
-    if (!isMac || !infoPlistPath || !fs.existsSync(infoPlistPath)) return;
+    if (!isMac || !infoPlistPath || !fs.existsSync(infoPlistPath)) return false;
 
     // The header hash — NOT the hash of the whole file. See lib/asar-integrity.js.
     const newHash = computeAsarHeaderHash(asarPath);
-    const plistData = fs.readFileSync(infoPlistPath, 'utf8');
-    const parsed = plist.parse(plistData);
-    if (parsed?.ElectronAsarIntegrity?.['Resources/app.asar']) {
-        parsed.ElectronAsarIntegrity['Resources/app.asar'].hash = newHash;
-        fs.writeFileSync(infoPlistPath, plist.build(parsed));
-    }
+    const updated = setAsarIntegrityHash(fs.readFileSync(infoPlistPath, 'utf8'), newHash);
+    if (!updated) return false;
+
+    fs.writeFileSync(infoPlistPath, updated);
+    return true;
 }
 
 function restoreMacAppState(asarPath, infoPlistPath, appPath) {
@@ -291,23 +293,24 @@ try {
             ? fs.readFileSync(INFO_PLIST_PATH)
             : null;
         try {
-            updateMacAsarIntegrity(ASAR_PATH, INFO_PLIST_PATH);
+            const integrityUpdated = updateMacAsarIntegrity(ASAR_PATH, INFO_PLIST_PATH);
 
-            // With the correct header hash written above, Electron's
-            // integrity validation passes on its own, so flipping the fuse is
-            // only a fallback for bundles whose Info.plist has no
-            // ElectronAsarIntegrity entry to update. It shells out to the
-            // network (`npx --yes @electron/fuses`), which fails on offline or
-            // restricted machines and inside the standalone binaries — so a
-            // failure here must not abort an otherwise good patch.
-            try {
-                disableAsarIntegrityFuse(CLAUDE_APP_PATH);
-            } catch (fuseErr) {
-                spinner.warn(chalk.yellow(
-                    'Could not flip the ASAR integrity fuse (continuing — the ' +
-                    'header hash in Info.plist already satisfies the check).'
-                ));
-                spinner = ora('Updating macOS security hashes and bypassing Gatekeeper...').start();
+            // Only bundles with no ElectronAsarIntegrity entry to satisfy need
+            // the fuse flipped. Where the header hash was written, Electron's
+            // check passes on its own and the app keeps its tamper protection.
+            if (!integrityUpdated) {
+                // The fallback shells out to the network (`npx --yes
+                // @electron/fuses`), which fails offline, behind a filtered
+                // connection, and inside the standalone binaries — so its
+                // failure must not abort an otherwise good patch.
+                try {
+                    disableAsarIntegrityFuse(CLAUDE_APP_PATH);
+                } catch (fuseErr) {
+                    spinner.warn(chalk.yellow(
+                        'Could not flip the ASAR integrity fuse: ' + fuseErr.message
+                    ));
+                    spinner = ora('Updating macOS security hashes and bypassing Gatekeeper...').start();
+                }
             }
 
             // Re-sign the entire bundle ad-hoc and verify it. Do not hide failures:

@@ -58,3 +58,45 @@ test('reads the header through the injected accessor', () => {
     assert.equal(computeAsarHeaderHash('/nowhere/app.asar', fakeReader), expected);
     assert.deepEqual(calls, ['/nowhere/app.asar']);
 });
+
+const { setAsarIntegrityHash } = require('../lib/asar-integrity');
+
+const PLIST_WITH_ENTRY = `<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
+<plist version="1.0">
+<dict>
+  <key>CFBundleName</key><string>Claude</string>
+  <key>ElectronAsarIntegrity</key>
+  <dict>
+    <key>Resources/app.asar</key>
+    <dict>
+      <key>algorithm</key><string>SHA256</string>
+      <key>hash</key><string>0000000000000000000000000000000000000000000000000000000000000000</string>
+    </dict>
+  </dict>
+</dict>
+</plist>`;
+
+const PLIST_WITHOUT_ENTRY = `<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
+<plist version="1.0">
+<dict>
+  <key>CFBundleName</key><string>Claude</string>
+</dict>
+</plist>`;
+
+test('writes the hash into an existing ElectronAsarIntegrity entry', () => {
+    const updated = setAsarIntegrityHash(PLIST_WITH_ENTRY, 'abc123');
+    assert.ok(updated, 'expected updated plist text');
+
+    const parsed = require('plist').parse(updated);
+    assert.equal(parsed.ElectronAsarIntegrity['Resources/app.asar'].hash, 'abc123');
+    // Everything else survives the round-trip.
+    assert.equal(parsed.CFBundleName, 'Claude');
+    assert.equal(parsed.ElectronAsarIntegrity['Resources/app.asar'].algorithm, 'SHA256');
+});
+
+test('reports "nothing to update" when the bundle has no integrity entry', () => {
+    // This is the only case where flipping the fuse is still warranted.
+    assert.equal(setAsarIntegrityHash(PLIST_WITHOUT_ENTRY, 'abc123'), null);
+});
