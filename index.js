@@ -4,7 +4,6 @@ const fs = require('fs');
 const path = require('path');
 const asar = require('@electron/asar');
 const plist = require('plist');
-const crypto = require('crypto');
 const chalk = require('chalk');
 const ora = require('ora');
 const figlet = require('figlet');
@@ -14,6 +13,7 @@ const { resolveAppPaths, isWindowsAppsPath } = require('./lib/platform');
 const { reSignMacApp } = require('./lib/macos');
 const { computeUnpackGlob } = require('./lib/unpack');
 const { disableAsarIntegrityFuse } = require('./lib/fuses');
+const { computeAsarHeaderHash } = require('./lib/asar-integrity');
 
 const isMac = process.platform === 'darwin';
 const isWin = process.platform === 'win32';
@@ -105,8 +105,8 @@ ${fontCss}
 function updateMacAsarIntegrity(asarPath, infoPlistPath) {
     if (!isMac || !infoPlistPath || !fs.existsSync(infoPlistPath)) return;
 
-    const fileBuffer = fs.readFileSync(asarPath);
-    const newHash = crypto.createHash('sha256').update(fileBuffer).digest('hex');
+    // The header hash — NOT the hash of the whole file. See lib/asar-integrity.js.
+    const newHash = computeAsarHeaderHash(asarPath);
     const plistData = fs.readFileSync(infoPlistPath, 'utf8');
     const parsed = plist.parse(plistData);
     if (parsed?.ElectronAsarIntegrity?.['Resources/app.asar']) {
@@ -293,13 +293,22 @@ try {
         try {
             updateMacAsarIntegrity(ASAR_PATH, INFO_PLIST_PATH);
 
-            // The real ASAR integrity check Electron enforces at launch is a
-            // fuse baked into the Electron Framework binary, not the
-            // ElectronAsarIntegrity key in Info.plist (that's a separate,
-            // legacy mechanism some build tools also happen to write, and
-            // updating it alone does NOT stop the "Integrity check failed"
-            // crash). Disable the real fuse via Electron's own tooling.
-            disableAsarIntegrityFuse(CLAUDE_APP_PATH);
+            // With the correct header hash written above, Electron's
+            // integrity validation passes on its own, so flipping the fuse is
+            // only a fallback for bundles whose Info.plist has no
+            // ElectronAsarIntegrity entry to update. It shells out to the
+            // network (`npx --yes @electron/fuses`), which fails on offline or
+            // restricted machines and inside the standalone binaries — so a
+            // failure here must not abort an otherwise good patch.
+            try {
+                disableAsarIntegrityFuse(CLAUDE_APP_PATH);
+            } catch (fuseErr) {
+                spinner.warn(chalk.yellow(
+                    'Could not flip the ASAR integrity fuse (continuing — the ' +
+                    'header hash in Info.plist already satisfies the check).'
+                ));
+                spinner = ora('Updating macOS security hashes and bypassing Gatekeeper...').start();
+            }
 
             // Re-sign the entire bundle ad-hoc and verify it. Do not hide failures:
             // an unsigned or partially signed app cannot launch on Apple Silicon.
