@@ -9,7 +9,7 @@ const chalk = require('chalk');
 const ora = require('ora');
 const figlet = require('figlet');
 const inquirer = require('inquirer');
-const fontCss = require('./font.js');
+const { CSS_INJECT_FULL, CSS_INJECT_FONT_ONLY } = require('./lib/css');
 const { resolveAppPaths, isWindowsAppsPath } = require('./lib/platform');
 const { reSignMacApp } = require('./lib/macos');
 const { computeUnpackGlob } = require('./lib/unpack');
@@ -79,28 +79,6 @@ const {
     backupPath: BACKUP_PATH
 } = resolvedPaths;
 const TEMP_DIR = path.join(require('os').tmpdir(), 'claude-rtl-patcher-temp');
-
-const CSS_INJECT_FULL = `
-/* RTL and Vazirmatn Font Patch */
-${fontCss}
-* { font-family: 'Vazirmatn', ui-sans-serif, system-ui, sans-serif !important; }
-/* Deliberately excludes bare div/span: those wrap icon-only buttons (e.g. the
-   "new chat" icon), and a forced text-align/unicode-bidi on every div/span
-   pushes their SVG content out of its clipped container, making it disappear. */
-p, h1, h2, h3, h4, h5, h6, textarea, input, .ProseMirror, [contenteditable] {
-    unicode-bidi: plaintext !important;
-    text-align: start !important;
-}
-`;
-
-// Font-only variant: just swaps the typeface, no direction/bidi changes.
-// Useful on newer Claude builds that already ship native RTL support and only
-// need the Vazirmatn font applied on top of it.
-const CSS_INJECT_FONT_ONLY = `
-/* Vazirmatn Font Patch (font-only, no RTL/bidi changes) */
-${fontCss}
-* { font-family: 'Vazirmatn', ui-sans-serif, system-ui, sans-serif !important; }
-`;
 
 function updateMacAsarIntegrity(asarPath, infoPlistPath) {
     if (!isMac || !infoPlistPath || !fs.existsSync(infoPlistPath)) return;
@@ -369,9 +347,20 @@ async function main() {
     }
 }
 
-main().catch(err => {
-    console.error(chalk.red('\n[!] UNEXPECTED ERROR: ' + err.message));
-    if (fs.existsSync(BACKUP_PATH)) fs.copyFileSync(BACKUP_PATH, ASAR_PATH);
-    console.log(chalk.yellow('\nClaude app has been restored to safety.'));
-    process.exit(1);
-});
+if (require.main === module) {
+    main().catch(err => {
+        console.error(chalk.red('\n[!] UNEXPECTED ERROR: ' + err.message));
+        if (fs.existsSync(BACKUP_PATH)) fs.copyFileSync(BACKUP_PATH, ASAR_PATH);
+        console.log(chalk.yellow('\nClaude app has been restored to safety.'));
+        process.exit(1);
+    });
+}
+
+module.exports = {
+    CSS_INJECT_FULL,
+    CSS_INJECT_FONT_ONLY,
+    compareVersions,
+    detectInstalledVersion,
+    patchClaude,
+    restoreClaude
+};
