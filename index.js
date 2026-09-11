@@ -10,6 +10,7 @@ const ora = require('ora');
 const figlet = require('figlet');
 const inquirer = require('inquirer');
 const { CSS_INJECT_FULL, CSS_INJECT_FONT_ONLY } = require('./lib/css');
+const { getRuntimeScript } = require('./lib/runtime');
 const { resolveAppPaths, isWindowsAppsPath } = require('./lib/platform');
 const { reSignMacApp } = require('./lib/macos');
 const { computeUnpackGlob } = require('./lib/unpack');
@@ -144,11 +145,13 @@ async function patchClaude(fontOnlyOverride) {
         }
     }
     const cssPayload = fontOnly ? CSS_INJECT_FONT_ONLY : CSS_INJECT_FULL;
+    const runtimeScript = getRuntimeScript();
     const jsPayload = `
 // Injected for Persian/Arabic/Hebrew support
-try { 
-  require('electron/renderer').webFrame.insertCSS(\`${cssPayload.replace(/\n/g, ' ')}\`); 
+try {
+  require('electron/renderer').webFrame.insertCSS(\`${cssPayload.replace(/\n/g, ' ')}\`);
   console.log("%c✨ ${fontOnly ? 'Vazirmatn font applied' : 'RTL applied'} by Rick Sanchez and Vazirmatn font used in memory of Saber Rastikerdar ✨", "color: #00e5ff; font-size: 14px; font-weight: bold; background: #222; padding: 5px; border-radius: 5px;");
+  ${runtimeScript}
 } catch(e) {}
 `;
     console.log('');
