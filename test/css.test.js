@@ -16,8 +16,9 @@ test('CSS_INJECT_FULL excludes SVGs, icons, and code from general font override'
     assert.match(CSS_INJECT_FULL, /:not\(\[class\*="icon" i\]\)/);
     assert.match(CSS_INJECT_FULL, /:not\(\[class\*="lucide" i\]\)/);
     assert.match(CSS_INJECT_FULL, /:not\(\[class\*="codicon" i\]\)/);
+    assert.match(CSS_INJECT_FULL, /:not\(\[aria-hidden="true"\]\)/);
     assert.match(CSS_INJECT_FULL, /:not\(pre\):not\(pre \*\):not\(code\):not\(code \*\)/);
-    assert.match(CSS_INJECT_FULL, /:not\(\.monaco-editor\)/);
+    assert.match(CSS_INJECT_FULL, /:not\(\.monaco-editor \.view-lines\)/);
     assert.match(CSS_INJECT_FULL, /:not\(\[class\*="katex" i\]\)/);
 });
 
@@ -28,8 +29,9 @@ test('CSS_INJECT_FONT_ONLY excludes SVGs, icons, and code from general font over
     assert.match(CSS_INJECT_FONT_ONLY, /:not\(\[class\*="icon" i\]\)/);
     assert.match(CSS_INJECT_FONT_ONLY, /:not\(\[class\*="lucide" i\]\)/);
     assert.match(CSS_INJECT_FONT_ONLY, /:not\(\[class\*="codicon" i\]\)/);
+    assert.match(CSS_INJECT_FONT_ONLY, /:not\(\[aria-hidden="true"\]\)/);
     assert.match(CSS_INJECT_FONT_ONLY, /:not\(pre\):not\(pre \*\):not\(code\):not\(code \*\)/);
-    assert.match(CSS_INJECT_FONT_ONLY, /:not\(\.monaco-editor\)/);
+    assert.match(CSS_INJECT_FONT_ONLY, /:not\(\.monaco-editor \.view-lines\)/);
     assert.match(CSS_INJECT_FONT_ONLY, /:not\(\[class\*="katex" i\]\)/);
 });
 
@@ -38,9 +40,12 @@ test('code blocks and inline code are explicitly preserved with monospace font a
     assert.match(CSS_INJECT_FULL, /code,\s*code \*/);
     assert.match(CSS_INJECT_FULL, /ui-monospace/);
     assert.match(CSS_INJECT_FULL, /SFMono-Regular/);
+    assert.match(CSS_INJECT_FULL, /DejaVu Sans Mono/);
+    assert.match(CSS_INJECT_FULL, /Ubuntu Mono/);
     assert.match(CSS_INJECT_FULL, /direction:\s*ltr\s*!important/);
     assert.match(CSS_INJECT_FULL, /text-align:\s*left\s*!important/);
     assert.match(CSS_INJECT_FULL, /unicode-bidi:\s*isolate\s*!important/);
+    assert.doesNotMatch(CSS_INJECT_FULL, /ui-monospace[^\n;]+Vazirmatn/);
 });
 
 test('KaTeX math formulas are preserved with LTR direction and isolation', () => {

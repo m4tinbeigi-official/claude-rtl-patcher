@@ -187,6 +187,7 @@ try {
     }
 
     if (fs.existsSync(TEMP_DIR)) fs.rmSync(TEMP_DIR, { recursive: true, force: true });
+    fs.mkdirSync(TEMP_DIR, { recursive: true });
 
     // Snapshot which files are already unpacked next to the original asar
     // BEFORE touching anything, so repacking keeps the same set on disk as
@@ -201,8 +202,8 @@ try {
         asar.extractAll(ASAR_PATH, TEMP_DIR);
         spinner.succeed(chalk.green('App extracted successfully.'));
     } catch(e) {
-        spinner.fail(chalk.red('Extraction failed. Restoring backup...'));
-        fs.copyFileSync(BACKUP_PATH, ASAR_PATH);
+        spinner.fail(chalk.red('Extraction failed: ' + e.message + '. Restoring backup...'));
+        if (fs.existsSync(BACKUP_PATH)) fs.copyFileSync(BACKUP_PATH, ASAR_PATH);
         process.exit(1);
     }
 
@@ -216,8 +217,11 @@ try {
                 if (fs.statSync(fullPath).isDirectory()) {
                     injectIntoFiles(fullPath);
                 } else if (fullPath.endsWith('.css')) {
-                    const content = fs.readFileSync(fullPath, 'utf8');
-                    if (!content.includes('Vazirmatn')) fs.appendFileSync(fullPath, cssPayload);
+                    let content = fs.readFileSync(fullPath, 'utf8');
+                    // Strip any prior patch so re-patching replaces with the latest payload cleanly
+                    content = content.replace(/\/\*\s*RTL and Vazirmatn Font Patch[\s\S]*$/, '');
+                    content = content.replace(/\/\*\s*Vazirmatn Font Patch[\s\S]*$/, '');
+                    fs.writeFileSync(fullPath, content.trimEnd() + '\n' + cssPayload);
                 } else if (fullPath.endsWith('.js')) {
                     // Exact basenames only. A substring check against the full
                     // path (e.g. fullPath.includes('buddy')) also matches
@@ -237,8 +241,10 @@ try {
                         'quickWindow.js', 'aboutWindow.js', 'findInPage.js'
                     ]);
                     if (BOOTSTRAP_JS_FILES.has(path.basename(fullPath))) {
-                        const content = fs.readFileSync(fullPath, 'utf8');
-                        if (!content.includes('Saber Rastikerdar')) fs.appendFileSync(fullPath, jsPayload);
+                        let content = fs.readFileSync(fullPath, 'utf8');
+                        // Strip any prior JS payload so re-patching replaces cleanly
+                        content = content.replace(/\/\/\s*Injected for Persian\/Arabic\/Hebrew support[\s\S]*$/, '');
+                        fs.writeFileSync(fullPath, content.trimEnd() + '\n' + jsPayload);
                     }
                 }
             }
