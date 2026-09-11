@@ -68,8 +68,20 @@ test('Markdown tables have proper RTL alignment rules', () => {
     assert.match(CSS_INJECT_FULL, /html\[data-claude-rtl="force"\] table/);
 });
 
-test('Force RTL mode rule is supported in CSS_INJECT_FULL', () => {
+test('RTL lists and list items have correct padding and direction', () => {
+    assert.match(CSS_INJECT_FULL, /ul\[dir="rtl"\]/);
+    assert.match(CSS_INJECT_FULL, /ol\[dir="rtl"\]/);
+    assert.match(CSS_INJECT_FULL, /li\[dir="rtl"\]/);
+    assert.match(CSS_INJECT_FULL, /padding-right:\s*1\.5rem\s*!important/);
+    assert.match(CSS_INJECT_FULL, /list-style-position:\s*outside\s*!important/);
+});
+
+test('Force RTL mode rule covers paragraphs, lists, list items, headings, blockquotes', () => {
     assert.match(CSS_INJECT_FULL, /html\[data-claude-rtl="force"\] p/);
+    assert.match(CSS_INJECT_FULL, /html\[data-claude-rtl="force"\] li/);
+    assert.match(CSS_INJECT_FULL, /html\[data-claude-rtl="force"\] ul/);
+    assert.match(CSS_INJECT_FULL, /html\[data-claude-rtl="force"\] ol/);
+    assert.match(CSS_INJECT_FULL, /html\[data-claude-rtl="force"\] blockquote/);
     assert.match(CSS_INJECT_FULL, /html\[data-claude-rtl="force"\] textarea/);
 });
 
@@ -94,11 +106,13 @@ test('CSS payloads do not contain single-line comments that could break minifica
     }
 });
 
-test('getRuntimeScript provides Alt+R shortcut, Shift+2 @ fix, and toast notifications', () => {
+test('getRuntimeScript provides Alt+R shortcut, Shift+2 @ fix, updateDir, and toast notifications', () => {
     const script = getRuntimeScript();
     assert.match(script, /KeyR/);
     assert.match(script, /Digit2/);
     assert.match(script, /claude_rtl_mode/);
     assert.match(script, /claude-rtl-toast/);
     assert.match(script, /insertText/);
+    assert.match(script, /updateDir/);
+    assert.match(script, /MutationObserver/);
 });
