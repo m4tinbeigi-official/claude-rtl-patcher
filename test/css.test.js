@@ -11,30 +11,19 @@ test('font.js defines Vazirmatn Variable font-weight 100 900 and unicode-range',
     assert.match(fontCss, /U\+200C/); // ZWNJ
 });
 
-test('CSS_INJECT_FULL excludes SVGs, icons, and code from general font override', () => {
-    assert.match(CSS_INJECT_FULL, /:not\(svg\)/);
-    assert.match(CSS_INJECT_FULL, /:not\(svg \*\)/);
-    assert.match(CSS_INJECT_FULL, /:not\(i\)/);
-    assert.match(CSS_INJECT_FULL, /:not\(\[class\*="icon" i\]\)/);
-    assert.match(CSS_INJECT_FULL, /:not\(\[class\*="lucide" i\]\)/);
-    assert.match(CSS_INJECT_FULL, /:not\(\[class\*="codicon" i\]\)/);
-    assert.match(CSS_INJECT_FULL, /:not\(\[aria-hidden="true"\]\)/);
-    assert.match(CSS_INJECT_FULL, /:not\(pre\):not\(pre \*\):not\(code\):not\(code \*\)/);
-    assert.match(CSS_INJECT_FULL, /:not\(\.monaco-editor \.view-lines\)/);
-    assert.match(CSS_INJECT_FULL, /:not\(\[class\*="katex" i\]\)/);
+test('CSS_INJECT_FULL scopes Vazirmatn font to RTL elements to protect English chats', () => {
+    assert.match(CSS_INJECT_FULL, /\[dir="rtl"\]/);
+    assert.match(CSS_INJECT_FULL, /\[dir="rtl"\] p/);
+    assert.match(CSS_INJECT_FULL, /html\[data-claude-rtl="force"\] p/);
+    assert.match(CSS_INJECT_FULL, /font-family:\s*'Vazirmatn'/);
+    // Must NOT have a universal wildcard font override * { font-family: 'Vazirmatn' !important; }
+    assert.doesNotMatch(CSS_INJECT_FULL, /^\s*\*\s*\{[^}]*font-family:\s*'Vazirmatn'/m);
 });
 
-test('CSS_INJECT_FONT_ONLY excludes SVGs, icons, and code from general font override', () => {
-    assert.match(CSS_INJECT_FONT_ONLY, /:not\(svg\)/);
-    assert.match(CSS_INJECT_FONT_ONLY, /:not\(svg \*\)/);
-    assert.match(CSS_INJECT_FONT_ONLY, /:not\(i\)/);
-    assert.match(CSS_INJECT_FONT_ONLY, /:not\(\[class\*="icon" i\]\)/);
-    assert.match(CSS_INJECT_FONT_ONLY, /:not\(\[class\*="lucide" i\]\)/);
-    assert.match(CSS_INJECT_FONT_ONLY, /:not\(\[class\*="codicon" i\]\)/);
-    assert.match(CSS_INJECT_FONT_ONLY, /:not\(\[aria-hidden="true"\]\)/);
-    assert.match(CSS_INJECT_FONT_ONLY, /:not\(pre\):not\(pre \*\):not\(code\):not\(code \*\)/);
-    assert.match(CSS_INJECT_FONT_ONLY, /:not\(\.monaco-editor \.view-lines\)/);
-    assert.match(CSS_INJECT_FONT_ONLY, /:not\(\[class\*="katex" i\]\)/);
+test('CSS_INJECT_FONT_ONLY scopes Vazirmatn font to RTL elements', () => {
+    assert.match(CSS_INJECT_FONT_ONLY, /\[dir="rtl"\]/);
+    assert.match(CSS_INJECT_FONT_ONLY, /html\[data-claude-rtl="force"\] p/);
+    assert.match(CSS_INJECT_FONT_ONLY, /font-family:\s*'Vazirmatn'/);
 });
 
 test('code blocks and inline code are explicitly preserved with monospace font and LTR', () => {
