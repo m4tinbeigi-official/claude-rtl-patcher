@@ -42,3 +42,13 @@ test('re-signs macOS apps without a shell and verifies the result', () => {
     assert.equal(calls[2].args.at(-1), '/Applications/Claude Test.app');
     assert.deepEqual(calls[3].args.slice(0, 3), ['--verify', '--deep', '--strict']);
 });
+
+test('disableAsarIntegrityFuse uses @electron/fuses API and rejects on invalid target', async () => {
+    const { disableAsarIntegrityFuse, resolveExecutableTarget } = require('../lib/fuses');
+    assert.equal(typeof resolveExecutableTarget, 'function');
+    assert.equal(resolveExecutableTarget('/Applications/Claude.app', 'darwin'), '/Applications/Claude.app');
+    await assert.rejects(
+        () => disableAsarIntegrityFuse('/nonexistent/app'),
+        /ENOENT|no such file/i
+    );
+});

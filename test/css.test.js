@@ -1,10 +1,11 @@
 const test = require('node:test');
 const assert = require('node:assert/strict');
-const fontCss = require('../font.js');
+const { getFontCss } = require('../lib/font');
+const fontCss = getFontCss();
 const { CSS_INJECT_FULL, CSS_INJECT_FONT_ONLY } = require('../lib/css');
 const { getRuntimeScript } = require('../lib/runtime');
 
-test('font.js defines Vazirmatn Variable font-weight 100 900 and unicode-range', () => {
+test('lib/font defines Vazirmatn Variable font-weight 100 900 and unicode-range', () => {
     assert.match(fontCss, /font-weight:\s*100\s*900/);
     assert.match(fontCss, /unicode-range:/);
     assert.match(fontCss, /U\+0600-06FF/);
@@ -29,6 +30,10 @@ test('CSS_INJECT_FONT_ONLY scopes Vazirmatn font to RTL elements', () => {
 test('code blocks and inline code are explicitly preserved with monospace font and LTR', () => {
     assert.match(CSS_INJECT_FULL, /pre,\s*pre \*/);
     assert.match(CSS_INJECT_FULL, /code,\s*code \*/);
+    assert.match(CSS_INJECT_FULL, /\.code-block__code/);
+    assert.match(CSS_INJECT_FULL, /\[class\*="code-block" i\]/);
+    assert.match(CSS_INJECT_FULL, /\[class\*="group\/copy"\]/);
+    assert.match(CSS_INJECT_FULL, /\[class\*="epitaxy" i\]/);
     assert.match(CSS_INJECT_FULL, /ui-monospace/);
     assert.match(CSS_INJECT_FULL, /SFMono-Regular/);
     assert.match(CSS_INJECT_FULL, /DejaVu Sans Mono/);
@@ -78,6 +83,15 @@ test('CSS_INJECT_FULL protects icons and SVGs from RTL bidi reordering and clipp
     assert.match(CSS_INJECT_FULL, /direction:\s*ltr\s*!important/);
     assert.match(CSS_INJECT_FULL, /unicode-bidi:\s*isolate\s*!important/);
     assert.match(CSS_INJECT_FULL, /text-align:\s*left\s*!important/);
+});
+
+test('Claude Anthropicons and icon fonts are strictly protected from monospace and Vazirmatn font overrides', () => {
+    assert.match(CSS_INJECT_FULL, /\[data-cds="Icon"\]/);
+    assert.match(CSS_INJECT_FULL, /font-family:\s*var\(--font-anthropicons,\s*Anthropicons-Variable\)\s*!important/);
+    assert.match(CSS_INJECT_FULL, /\[class\*="codicon" i\]/);
+    assert.match(CSS_INJECT_FULL, /font-family:\s*codicon\s*!important/);
+    assert.match(CSS_INJECT_FONT_ONLY, /\[data-cds="Icon"\]/);
+    assert.match(CSS_INJECT_FONT_ONLY, /font-family:\s*var\(--font-anthropicons,\s*Anthropicons-Variable\)\s*!important/);
 });
 
 test('CSS payloads do not contain single-line comments that could break minification', () => {
