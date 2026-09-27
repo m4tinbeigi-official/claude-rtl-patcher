@@ -119,3 +119,36 @@ test('getRuntimeScript provides Alt+R shortcut, Shift+2 @ fix, updateDir, and to
     assert.match(script, /updateDir/);
     assert.match(script, /MutationObserver/);
 });
+
+test('--claude-rtl-font-size is declared in :root and applied to RTL text elements', () => {
+    assert.match(CSS_INJECT_FULL, /--claude-rtl-font-size:\s*16px;/);
+    assert.match(CSS_INJECT_FULL, /font-size:\s*var\(--claude-rtl-font-size\)/);
+    assert.match(CSS_INJECT_FONT_ONLY, /--claude-rtl-font-size:\s*16px;/);
+    assert.match(CSS_INJECT_FONT_ONLY, /font-size:\s*var\(--claude-rtl-font-size\)/);
+});
+
+test('CSS_INJECT_FULL strictly scopes typography without un-scoped p, li selector', () => {
+    assert.doesNotMatch(CSS_INJECT_FULL, /(^|\n)\s*p\s*,\s*li\s*\{/m);
+    assert.doesNotMatch(CSS_INJECT_FULL, /(^|\n)\s*\.font-claude-response-body\s*,\s*p\s*,\s*li\s*\{/m);
+});
+
+test('floating widget styles are present in both full and font-only payloads', () => {
+    assert.match(CSS_INJECT_FULL, /#claude-rtl-widget\s*\{/);
+    assert.match(CSS_INJECT_FULL, /#claude-rtl-widget-btn/);
+    assert.match(CSS_INJECT_FULL, /#claude-rtl-widget-panel/);
+    assert.match(CSS_INJECT_FONT_ONLY, /#claude-rtl-widget\s*\{/);
+    assert.match(CSS_INJECT_FONT_ONLY, /#claude-rtl-widget-btn/);
+    assert.match(CSS_INJECT_FONT_ONLY, /#claude-rtl-widget-panel/);
+});
+
+test('Force RTL mode list rules strictly exclude navigation, sidebar, and headers', () => {
+    assert.match(CSS_INJECT_FULL, /html\[data-claude-rtl="force"\] ul:not\([^)]*aside/);
+    assert.match(CSS_INJECT_FULL, /html\[data-claude-rtl="force"\] ol:not\([^)]*aside/);
+    assert.match(CSS_INJECT_FULL, /html\[data-claude-rtl="force"\] li:not\([^)]*aside/);
+});
+
+test('--font-user-message is declared and applied to RTL user messages', () => {
+    assert.match(CSS_INJECT_FULL, /--font-user-message:\s*var\(--claude-rtl-custom-font/);
+    assert.match(CSS_INJECT_FULL, /\.font-user-message\[dir="rtl"\]/);
+    assert.match(CSS_INJECT_FULL, /font-family:\s*var\(--font-user-message\)/);
+});
