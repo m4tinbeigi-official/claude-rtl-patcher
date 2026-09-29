@@ -39,6 +39,30 @@ test('lib/runtime.js provides Alt+R, Shift+2 fix, and updateDir logic', () => {
     assert.match(script, /claude_rtl_mode/);
     assert.match(script, /updateDir/);
     assert.match(script, /claude-rtl-toast/);
+    // Verified ES6 modernization and scoping
+    assert.match(script, /^\(\(\)\s*=>\s*\{/);
+    assert.match(script, /let\s+updatePending\s*=\s*false;/);
+    assert.match(script, /#claude-rtl-widget,\s*#claude-rtl-toast/);
+});
+
+test('lib/engine.js safely injects CSS via JSON.stringify without template literal breakage', () => {
+    const tempTestRoot = fs.mkdtempSync(path.join(os.tmpdir(), 'claude-safe-inject-test-'));
+    const extractDir = path.join(tempTestRoot, 'extract');
+    fs.mkdirSync(path.join(extractDir, '.vite', 'build'), { recursive: true });
+    fs.writeFileSync(path.join(extractDir, '.vite', 'build', 'mainWindow.js'), 'console.log("init");');
+
+    // Run injection
+    engine.injectStylesAndRuntime(extractDir, { fontOnly: false });
+
+    const injectedJs = fs.readFileSync(path.join(extractDir, '.vite', 'build', 'mainWindow.js'), 'utf8');
+    assert.match(injectedJs, /webFrame\.insertCSS\("/);
+
+    // Verify injected JS is syntactically valid
+    assert.doesNotThrow(() => {
+        new Function('require', injectedJs);
+    });
+
+    fs.rmSync(tempTestRoot, { recursive: true, force: true });
 });
 
 test('lib/engine.js can extract, inject, and repack a mock asar bundle cleanly', async () => {
