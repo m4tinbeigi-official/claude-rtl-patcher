@@ -9,7 +9,7 @@ const chalk = require('chalk');
 const ora = require('ora');
 const figlet = require('figlet');
 const inquirer = require('inquirer');
-const fontCss = require('./font.js');
+const { CSS_INJECT_FULL, CSS_INJECT_FONT_ONLY } = require('./lib/css');
 const { resolveAppPaths, isWindowsAppsPath } = require('./lib/platform');
 const { reSignMacApp } = require('./lib/macos');
 const { computeUnpackGlob } = require('./lib/unpack');
@@ -79,28 +79,6 @@ const {
     backupPath: BACKUP_PATH
 } = resolvedPaths;
 const TEMP_DIR = path.join(require('os').tmpdir(), 'claude-rtl-patcher-temp');
-
-const CSS_INJECT_FULL = `
-/* RTL and Vazirmatn Font Patch */
-${fontCss}
-* { font-family: 'Vazirmatn', ui-sans-serif, system-ui, sans-serif !important; }
-/* Deliberately excludes bare div/span: those wrap icon-only buttons (e.g. the
-   "new chat" icon), and a forced text-align/unicode-bidi on every div/span
-   pushes their SVG content out of its clipped container, making it disappear. */
-p, h1, h2, h3, h4, h5, h6, textarea, input, .ProseMirror, [contenteditable] {
-    unicode-bidi: plaintext !important;
-    text-align: start !important;
-}
-`;
-
-// Font-only variant: just swaps the typeface, no direction/bidi changes.
-// Useful on newer Claude builds that already ship native RTL support and only
-// need the Vazirmatn font applied on top of it.
-const CSS_INJECT_FONT_ONLY = `
-/* Vazirmatn Font Patch (font-only, no RTL/bidi changes) */
-${fontCss}
-* { font-family: 'Vazirmatn', ui-sans-serif, system-ui, sans-serif !important; }
-`;
 
 function updateMacAsarIntegrity(asarPath, infoPlistPath) {
     if (!isMac || !infoPlistPath || !fs.existsSync(infoPlistPath)) return;
@@ -209,6 +187,7 @@ try {
     }
 
     if (fs.existsSync(TEMP_DIR)) fs.rmSync(TEMP_DIR, { recursive: true, force: true });
+    fs.mkdirSync(TEMP_DIR, { recursive: true });
 
     // Snapshot which files are already unpacked next to the original asar
     // BEFORE touching anything, so repacking keeps the same set on disk as
@@ -223,8 +202,8 @@ try {
         asar.extractAll(ASAR_PATH, TEMP_DIR);
         spinner.succeed(chalk.green('App extracted successfully.'));
     } catch(e) {
-        spinner.fail(chalk.red('Extraction failed. Restoring backup...'));
-        fs.copyFileSync(BACKUP_PATH, ASAR_PATH);
+        spinner.fail(chalk.red('Extraction failed: ' + e.message + '. Restoring backup...'));
+        if (fs.existsSync(BACKUP_PATH)) fs.copyFileSync(BACKUP_PATH, ASAR_PATH);
         process.exit(1);
     }
 
@@ -238,8 +217,11 @@ try {
                 if (fs.statSync(fullPath).isDirectory()) {
                     injectIntoFiles(fullPath);
                 } else if (fullPath.endsWith('.css')) {
-                    const content = fs.readFileSync(fullPath, 'utf8');
-                    if (!content.includes('Vazirmatn')) fs.appendFileSync(fullPath, cssPayload);
+                    let content = fs.readFileSync(fullPath, 'utf8');
+                    // Strip any prior patch so re-patching replaces with the latest payload cleanly
+                    content = content.replace(/\/\*\s*RTL and Vazirmatn Font Patch[\s\S]*$/, '');
+                    content = content.replace(/\/\*\s*Vazirmatn Font Patch[\s\S]*$/, '');
+                    fs.writeFileSync(fullPath, content.trimEnd() + '\n' + cssPayload);
                 } else if (fullPath.endsWith('.js')) {
                     // Exact basenames only. A substring check against the full
                     // path (e.g. fullPath.includes('buddy')) also matches
@@ -259,8 +241,10 @@ try {
                         'quickWindow.js', 'aboutWindow.js', 'findInPage.js'
                     ]);
                     if (BOOTSTRAP_JS_FILES.has(path.basename(fullPath))) {
-                        const content = fs.readFileSync(fullPath, 'utf8');
-                        if (!content.includes('Saber Rastikerdar')) fs.appendFileSync(fullPath, jsPayload);
+                        let content = fs.readFileSync(fullPath, 'utf8');
+                        // Strip any prior JS payload so re-patching replaces cleanly
+                        content = content.replace(/\/\/\s*Injected for Persian\/Arabic\/Hebrew support[\s\S]*$/, '');
+                        fs.writeFileSync(fullPath, content.trimEnd() + '\n' + jsPayload);
                     }
                 }
             }
@@ -369,9 +353,20 @@ async function main() {
     }
 }
 
-main().catch(err => {
-    console.error(chalk.red('\n[!] UNEXPECTED ERROR: ' + err.message));
-    if (fs.existsSync(BACKUP_PATH)) fs.copyFileSync(BACKUP_PATH, ASAR_PATH);
-    console.log(chalk.yellow('\nClaude app has been restored to safety.'));
-    process.exit(1);
-});
+if (require.main === module) {
+    main().catch(err => {
+        console.error(chalk.red('\n[!] UNEXPECTED ERROR: ' + err.message));
+        if (fs.existsSync(BACKUP_PATH)) fs.copyFileSync(BACKUP_PATH, ASAR_PATH);
+        console.log(chalk.yellow('\nClaude app has been restored to safety.'));
+        process.exit(1);
+    });
+}
+
+module.exports = {
+    CSS_INJECT_FULL,
+    CSS_INJECT_FONT_ONLY,
+    compareVersions,
+    detectInstalledVersion,
+    patchClaude,
+    restoreClaude
+};
