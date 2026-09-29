@@ -251,27 +251,45 @@ async function watchClaude() {
     console.log(gray('Monitoring for app updates... (Press Ctrl+C to stop)\n'));
 
     let isPatching = false;
+    let debounceTimer = null;
     let lastMtime = fs.existsSync(ASAR_PATH) ? fs.statSync(ASAR_PATH).mtimeMs : 0;
 
-    const checkAndPatch = async () => {
+    const triggerCheck = () => {
         if (isPatching || !fs.existsSync(ASAR_PATH)) return;
-        try {
-            const currentMtime = fs.statSync(ASAR_PATH).mtimeMs;
-            if (currentMtime !== lastMtime) {
-                lastMtime = currentMtime;
-                console.log(yellow('\n[!] Detected change in app.asar (likely Claude update). Auto-patching...'));
-                isPatching = true;
-                await patchClaude();
-                lastMtime = fs.existsSync(ASAR_PATH) ? fs.statSync(ASAR_PATH).mtimeMs : 0;
+        clearTimeout(debounceTimer);
+        debounceTimer = setTimeout(async () => {
+            if (isPatching || !fs.existsSync(ASAR_PATH)) return;
+            try {
+                const currentMtime = fs.statSync(ASAR_PATH).mtimeMs;
+                if (currentMtime !== lastMtime) {
+                    lastMtime = currentMtime;
+                    console.log(yellow('\n[!] Detected change in app.asar (likely Claude update). Auto-patching...'));
+                    isPatching = true;
+                    await patchClaude();
+                    lastMtime = fs.existsSync(ASAR_PATH) ? fs.statSync(ASAR_PATH).mtimeMs : 0;
+                    isPatching = false;
+                    console.log(green('✔ Successfully re-applied RTL patch! Resuming watch...\n'));
+                }
+            } catch (err) {
                 isPatching = false;
-                console.log(green('✔ Successfully re-applied RTL patch! Resuming watch...\n'));
             }
-        } catch (err) {
-            isPatching = false;
-        }
+        }, 1500);
     };
 
-    setInterval(checkAndPatch, 4000);
+    // Event-driven watcher on resources directory (handles atomic file swaps and renames)
+    try {
+        if (fs.existsSync(RESOURCES_PATH)) {
+            const watcher = fs.watch(RESOURCES_PATH, (eventType, filename) => {
+                if (!filename || filename.toLowerCase().includes('app.asar')) {
+                    triggerCheck();
+                }
+            });
+            watcher.on('error', () => {});
+        }
+    } catch (e) {}
+
+    // Low-frequency heartbeat fallback to ensure updates aren't missed even if fs events fail
+    setInterval(triggerCheck, 10000);
 }
 
 async function main() {

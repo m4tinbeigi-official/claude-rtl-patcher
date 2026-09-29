@@ -42,6 +42,8 @@ test('lib/runtime.js provides Alt+R, Shift+2 fix, and updateDir logic', () => {
     // Verified ES6 modernization and scoping
     assert.match(script, /^\(\(\)\s*=>\s*\{/);
     assert.match(script, /let\s+updatePending\s*=\s*false;/);
+    assert.match(script, /let\s+pendingScope\s*=\s*null;/);
+    assert.match(script, /function\s+updateDir\(scopeRoot\)/);
     assert.match(script, /#claude-rtl-widget,\s*#claude-rtl-toast/);
 });
 
