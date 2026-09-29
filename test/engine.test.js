@@ -58,6 +58,7 @@ test('lib/engine.js safely injects CSS via JSON.stringify without template liter
 
     const injectedJs = fs.readFileSync(path.join(extractDir, '.vite', 'build', 'mainWindow.js'), 'utf8');
     assert.match(injectedJs, /webFrame\.insertCSS\("/);
+    assert.match(injectedJs, /alreadyLoaded/);
 
     // Verify injected JS is syntactically valid
     assert.doesNotThrow(() => {
