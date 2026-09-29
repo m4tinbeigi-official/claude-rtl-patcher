@@ -152,3 +152,9 @@ test('--font-user-message is declared and applied to RTL user messages', () => {
     assert.match(CSS_INJECT_FULL, /\.font-user-message\[dir="rtl"\]/);
     assert.match(CSS_INJECT_FULL, /font-family:\s*var\(--font-user-message\)/);
 });
+
+test('user message container preserves LTR structural direction to keep bubble on the right', () => {
+    assert.match(CSS_INJECT_FULL, /\[data-cds="UserMessage"\],\s*\[data-testid="user-message"\]\s*\{\s*direction:\s*ltr\s*!important;/);
+    assert.match(CSS_INJECT_FULL, /\[data-cds="UserMessage"\]\s+\[dir="rtl"\]/);
+    assert.doesNotMatch(CSS_INJECT_FULL, /\[data-cds="UserMessage"\]\[dir="rtl"\]/);
+});
