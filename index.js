@@ -321,11 +321,11 @@ async function main() {
         name: 'action',
         message: 'What would you like to do?',
         choices: [
-            { title: '🔍 Auto-detect (recommended — font-only on new Claude, full RTL patch on old)', value: 'auto' },
-            { title: '✨ Force Full RTL Patch & Vazirmatn Variable Font (Persian/Arabic/Hebrew)', value: 'patch' },
-            { title: '🔤 Force Vazirmatn Variable Font Only (no RTL/direction changes)', value: 'font-only' },
-            { title: '⏪ Restore Original Claude (Remove Patch)', value: 'restore' },
-            { title: '👀 Watch & Auto Re-patch on Claude Updates (--watch)', value: 'watch' },
+            { title: '🔍 Auto-detect (Recommended)', value: 'auto' },
+            { title: '✨ Force Full RTL (Persian/Arabic + Font)', value: 'patch' },
+            { title: '🔤 Font Only (Vazirmatn without RTL)', value: 'font-only' },
+            { title: '⏪ Restore Original Claude', value: 'restore' },
+            { title: '👀 Watch & Auto Re-patch', value: 'watch' },
             { title: '❌ Exit', value: 'exit' }
         ],
         initial: 0
