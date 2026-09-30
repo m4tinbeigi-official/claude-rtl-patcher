@@ -1,3 +1,9 @@
+<p align="center">
+  <a href="https://devsponsors.github.io">
+    <img src="https://devsponsors.github.io/assets/badges/sponsor.svg" alt="DevSponsors Badge">
+  </a>
+</p>
+
 <!-- DevSponsors Badges -->
 <p align="center">
   <a href="https://devsponsors.github.io"><img src="https://img.shields.io/badge/DevSponsors-Verified_OSS-6366f1?style=for-the-badge&logo=github" alt="DevSponsors Verified"></a>
