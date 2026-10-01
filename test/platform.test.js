@@ -1,7 +1,38 @@
 const test = require('node:test');
 const assert = require('node:assert/strict');
+const fs = require('fs');
+const path = require('path');
+const os = require('os');
+const plist = require('plist');
 const { resolveAppPaths, isWindowsAppsPath } = require('../lib/platform');
-const { reSignMacApp } = require('../lib/macos');
+const { reSignMacApp, updateMacAsarIntegrity } = require('../lib/macos');
+
+test('updateMacAsarIntegrity updates plist hash correctly', () => {
+    const tempDir = fs.mkdtempSync(path.join(os.tmpdir(), 'claude-integrity-test-'));
+    const dummyAsar = path.join(tempDir, 'app.asar');
+    const dummyPlist = path.join(tempDir, 'Info.plist');
+
+    fs.writeFileSync(dummyAsar, 'dummy asar content');
+    const initialPlist = {
+        CFBundleIdentifier: 'com.anthropic.claude',
+        ElectronAsarIntegrity: {
+            'Resources/app.asar': {
+                algorithm: 'SHA256',
+                hash: 'oldhash123'
+            }
+        }
+    };
+    fs.writeFileSync(dummyPlist, plist.build(initialPlist));
+
+    const updated = updateMacAsarIntegrity(dummyAsar, dummyPlist);
+    assert.equal(updated, true);
+
+    const parsed = plist.parse(fs.readFileSync(dummyPlist, 'utf8'));
+    assert.notEqual(parsed.ElectronAsarIntegrity['Resources/app.asar'].hash, 'oldhash123');
+    assert.equal(parsed.ElectronAsarIntegrity['Resources/app.asar'].hash.length, 64);
+
+    fs.rmSync(tempDir, { recursive: true, force: true });
+});
 
 test('resolves a custom macOS app bundle', () => {
     const paths = resolveAppPaths({
@@ -41,4 +72,14 @@ test('re-signs macOS apps without a shell and verifies the result', () => {
     assert.deepEqual(calls[2].args.slice(0, 4), ['--force', '--deep', '--sign', '-']);
     assert.equal(calls[2].args.at(-1), '/Applications/Claude Test.app');
     assert.deepEqual(calls[3].args.slice(0, 3), ['--verify', '--deep', '--strict']);
+});
+
+test('disableAsarIntegrityFuse uses @electron/fuses API and rejects on invalid target', async () => {
+    const { disableAsarIntegrityFuse, resolveExecutableTarget } = require('../lib/fuses');
+    assert.equal(typeof resolveExecutableTarget, 'function');
+    assert.equal(resolveExecutableTarget('/Applications/Claude.app', 'darwin'), '/Applications/Claude.app');
+    await assert.rejects(
+        () => disableAsarIntegrityFuse('/nonexistent/app'),
+        /ENOENT|no such file/i
+    );
 });

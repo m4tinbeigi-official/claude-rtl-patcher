@@ -67,6 +67,20 @@ npx claude-rtl-patcher --full        # force the full RTL + font patch, even on 
 
 ---
 
+## ✨ Features & Keyboard Shortcuts
+
+* 🔤 **Vazirmatn Variable Font**: Upgraded to official variable font supporting weight axes `100 900` for native, crisp bold headers and text.
+* ⌨️ **`Alt + R` Mode Toggle**: Instantly cycle between modes on the fly with a sleek floating toast notification:
+  * **Auto RTL**: Smart auto-detection based on paragraph language.
+  * **Force RTL**: Right-aligns all paragraphs (fixing sentences starting with English words like "Docker", "API", or "Claude").
+  * **Disabled**: Temporarily disables RTL alignment for pure English/code review.
+* ⌨️ **Persian Keyboard `@` Fix**: Intercepts `Shift + 2` on Persian keyboards to type `@` directly instead of `٬`.
+* 🧠 **Thinking & Reasoning Isolation**: Extended thinking streams (e.g. Claude 3.7 Sonnet) remain strictly LTR and left-aligned.
+* 📊 **Markdown Tables RTL**: Proper table alignment, borders, and cell padding for RTL conversations.
+* 💻 **Monospace & Icon Protection**: Code blocks, copy buttons, SVGs, and syntax tokens strictly keep their monospace font and LTR layout.
+
+---
+
 ## 🐧 Custom Paths & Linux
 If you installed Claude in a custom directory, or you use an unofficial Linux wrapper, simply provide the path to your installation (or directly to the `app.asar` file) as an argument:
 ```bash
